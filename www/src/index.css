@@ -1,0 +1,64 @@
+:root {
+  --bg-color: #151817;
+  --text-color: #D4D5D4;
+  --text-secondary: #8D9693;
+  --border-color: #e0e0e0;
+  --card-bg: #282B2A;
+  --input-bg: #ffffff;
+  --button-bg: #5BA97D;
+  --button-text: #ffffff;
+  --button-secondary-bg: #1E2020;
+  --button-secondary-text: #8D9693;
+}
+
+[data-theme="dark"] {
+  --bg-color: #151817;
+  --text-color: #D4D5D4;
+  --text-secondary: #8D9693;
+  --border-color: #333333;
+  --card-bg: #282B2A;
+  --input-bg: #333333;
+  --button-bg: #5BA97D;
+  --button-text: #ffffff;
+  --button-secondary-bg: #1E2020;
+  --button-secondary-text: #8D9693;
+}
+
+html, body {
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  margin: 0px;
+  padding: 0px;
+}
+
+* {
+  border-color: var(--border-color);
+  box-sizing: border-box;
+}
+
+input, textarea {
+  background: var(--input-bg);
+  color: var(--text-color);
+  border-color: var(--border-color);
+}
+
+button {
+  background: var(--button-bg);
+  color: var(--button-text);
+}
+
+.card {
+  background: var(--card-bg);
+}
+
+code, pre, .code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+}
+
+/* reset styles */
+h1, h2, h3, h4, h5, h6, p, ul, ol, li, pre {
+  margin: 0px;
+  padding: 0px;
+}
