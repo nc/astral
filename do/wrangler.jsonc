@@ -10,6 +10,7 @@
 	"migrations": [
 		{
 			"new_sqlite_classes": [
+				"SpaceDurableObject",
 				"MyDurableObject"
 			],
 			"tag": "v1"
@@ -17,6 +18,10 @@
 	],
 	"durable_objects": {
 		"bindings": [
+			{
+				"class_name": "SpaceDurableObject",
+				"name": "SPACE"
+			},
 			{
 				"class_name": "MyDurableObject",
 				"name": "MY_DURABLE_OBJECT"

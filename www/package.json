@@ -9,11 +9,17 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "nodemon --exec ts-node server.ts",
-    "start": "npm run server & npm run dev"
+    "start": "npm run server & npm run dev",
+    "test": "vitest",
+    "test:server": "vitest server.test.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.16",
-    "@ai-sdk/openai": "^2.0.32",
+    "@ai-sdk/anthropic": "^2.1.0-beta.9",
+    "@ai-sdk/openai": "^2.1.0-beta.11",
     "@lexical/plain-text": "^0.35.0",
     "@lexical/react": "^0.35.0",
     "@radix-ui/react-context-menu": "^2.2.16",
@@ -23,7 +29,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/uuid": "^10.0.0",
-    "ai": "^5.0.44",
+    "ai": "^5.1.0-beta.19",
     "cheerio": "^1.1.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
@@ -33,11 +39,13 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",
+    "tsx": "^4.20.6",
     "uuid": "^13.0.0",
     "valtio": "^2.1.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
+    "@types/node": "^24.6.0",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
@@ -49,6 +57,7 @@
     "ts-node": "^10.9.2",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.39.1",
-    "vite": "^7.1.2"
+    "vite": "^7.1.2",
+    "vitest": "^3.2.4"
   }
 }
