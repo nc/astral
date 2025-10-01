@@ -6,6 +6,11 @@ import type {
 	WebSocketMessage,
 	WebSocketResponse,
 } from "../../shared-types";
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { createOpenAI } from '@ai-sdk/openai';
+import { Agent, stepCountIs, tool } from 'ai';
+import { z } from 'zod';
+import * as cheerio from 'cheerio';
 
 /**
  * Space Durable Object
@@ -25,10 +30,13 @@ export class SpaceDurableObject extends DurableObject<Env> {
 	}
 
 	/**
-	 * Handle WebSocket connections
+	 * Handle both HTTP and WebSocket requests
 	 */
 	async fetch(request: Request): Promise<Response> {
 		const upgradeHeader = request.headers.get("Upgrade");
+		const url = new URL(request.url);
+
+		// Handle WebSocket upgrade
 		if (upgradeHeader === "websocket") {
 			const webSocketPair = new WebSocketPair();
 			const [client, server] = Object.values(webSocketPair);
@@ -41,7 +49,255 @@ export class SpaceDurableObject extends DurableObject<Env> {
 			});
 		}
 
-		return new Response("Expected WebSocket", { status: 400 });
+		// Handle HTTP /chat endpoint
+		if (url.pathname === "/chat" && request.method === "POST") {
+			return this.handleChatRequest(request);
+		}
+
+		return new Response("Expected WebSocket or /chat POST request", { status: 400 });
+	}
+
+	/**
+	 * Handle chat API request with streaming
+	 */
+	private async handleChatRequest(request: Request): Promise<Response> {
+		try {
+			const body = await request.json() as {
+				messages: any[];
+				model: string;
+			};
+
+			if (!body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
+				return new Response(JSON.stringify({ error: 'Messages array is required' }), {
+					status: 400,
+					headers: {
+						'Content-Type': 'application/json',
+						'Access-Control-Allow-Origin': '*',
+						'Access-Control-Allow-Methods': 'POST, OPTIONS',
+						'Access-Control-Allow-Headers': 'Content-Type',
+					},
+				});
+			}
+
+			if (!body.model) {
+				return new Response(JSON.stringify({ error: 'Model is required' }), {
+					status: 400,
+					headers: {
+						'Content-Type': 'application/json',
+						'Access-Control-Allow-Origin': '*',
+						'Access-Control-Allow-Methods': 'POST, OPTIONS',
+						'Access-Control-Allow-Headers': 'Content-Type',
+					},
+				});
+			}
+
+			// Get API keys from environment
+			const anthropicKey = this.env.ANTHROPIC_API_KEY;
+			const openaiKey = this.env.OPENAI_API_KEY;
+			const serperKey = this.env.SERPER_API_KEY;
+
+			if (!anthropicKey && body.model.startsWith('claude-')) {
+				return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }), {
+					status: 500,
+					headers: {
+						'Content-Type': 'application/json',
+						'Access-Control-Allow-Origin': '*',
+						'Access-Control-Allow-Methods': 'POST, OPTIONS',
+						'Access-Control-Allow-Headers': 'Content-Type',
+					},
+				});
+			}
+
+			if (!openaiKey && (body.model.startsWith('gpt-') || body.model.startsWith('o1-') || body.model.startsWith('o3-'))) {
+				return new Response(JSON.stringify({ error: 'OPENAI_API_KEY not configured' }), {
+					status: 500,
+					headers: {
+						'Content-Type': 'application/json',
+						'Access-Control-Allow-Origin': '*',
+						'Access-Control-Allow-Methods': 'POST, OPTIONS',
+						'Access-Control-Allow-Headers': 'Content-Type',
+					},
+				});
+			}
+
+			// Initialize AI providers
+			const anthropic = createAnthropic({ apiKey: anthropicKey });
+			const openai = createOpenAI({ apiKey: openaiKey });
+
+			// Determine model provider
+			let modelProvider;
+			if (body.model.startsWith('claude-')) {
+				modelProvider = anthropic(body.model);
+			} else if (body.model.startsWith('gpt-') || body.model.startsWith('o1-') || body.model.startsWith('o3-')) {
+				modelProvider = openai(body.model);
+			} else {
+				return new Response(JSON.stringify({ error: 'Unsupported model' }), {
+					status: 400,
+					headers: {
+						'Content-Type': 'application/json',
+						'Access-Control-Allow-Origin': '*',
+						'Access-Control-Allow-Methods': 'POST, OPTIONS',
+						'Access-Control-Allow-Headers': 'Content-Type',
+					},
+				});
+			}
+
+			// Create web search tool
+			const webSearchTool = tool({
+				description: 'Search the web for current information, news, and answers to questions',
+				inputSchema: z.object({
+					query: z.string().describe('The search query to execute'),
+					num: z.number().optional().default(10).describe('Number of search results to return (default: 10)'),
+				}),
+				execute: async ({ query, num = 10 }) => {
+					if (!serperKey) {
+						throw new Error('SERPER_API_KEY not configured');
+					}
+
+					const response = await fetch('https://google.serper.dev/search', {
+						method: 'POST',
+						headers: {
+							'X-API-KEY': serperKey,
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({ q: query, num }),
+					});
+
+					if (!response.ok) {
+						throw new Error(`Search API error: ${response.status}`);
+					}
+
+					const data = await response.json() as any;
+
+					return {
+						searchTerm: query,
+						results: data.organic?.map((result: any, index: number) => ({
+							position: index + 1,
+							title: result.title,
+							link: result.link,
+							snippet: result.snippet,
+						})) || [],
+						answerBox: data.answerBox || null,
+						peopleAlsoAsk: data.peopleAlsoAsk?.slice(0, 3) || [],
+						relatedSearches: data.relatedSearches?.slice(0, 5) || [],
+					};
+				},
+			});
+
+			// Create visit webpage tool
+			const visitWebpageTool = tool({
+				description: 'Visit a webpage and retrieve its content, including text, headings, links, and metadata',
+				inputSchema: z.object({
+					url: z.string().url().describe('The URL of the webpage to visit'),
+					maxLength: z.number().optional().default(10000).describe('Maximum content length to extract (default: 10000 characters)'),
+				}),
+				execute: async ({ url, maxLength = 10000 }) => {
+					const response = await fetch(url, {
+						headers: {
+							'User-Agent': 'Mozilla/5.0 (compatible; WebpageVisitor/1.0)',
+							'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+						},
+					});
+
+					if (!response.ok) {
+						throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+					}
+
+					const html = await response.text();
+					const $ = cheerio.load(html);
+
+					const title = $('title').text().trim() || $('h1').first().text().trim() || 'No title found';
+					const description = $('meta[name="description"]').attr('content') || undefined;
+
+					// Extract headings
+					const headings = {
+						h1: $('h1').map((_, el) => $(el).text().trim()).get(),
+						h2: $('h2').map((_, el) => $(el).text().trim()).get(),
+						h3: $('h3').map((_, el) => $(el).text().trim()).get(),
+					};
+
+					// Extract main content
+					$('script, style, nav, header, footer, aside').remove();
+					let contentElement = $('main, article, .content, #content').first();
+					if (contentElement.length === 0) {
+						contentElement = $('body');
+					}
+
+					const rawContent = contentElement.text()
+						.replace(/\s+/g, ' ')
+						.trim();
+
+					const content = rawContent.length > maxLength
+						? rawContent.substring(0, maxLength) + '...'
+						: rawContent;
+
+					return {
+						url,
+						title,
+						content,
+						description,
+						headings,
+						wordCount: content.split(/\s+/).length,
+					};
+				},
+			});
+
+			// Create agent
+			const agent = new Agent({
+				model: modelProvider,
+				system: 'You are a helpful AI assistant with access to web search and webpage content retrieval.',
+				tools: {
+					webSearch: webSearchTool,
+					visitWebpage: visitWebpageTool,
+				},
+				stopWhen: stepCountIs(10),
+			});
+
+			// Stream response
+			const { readable, writable } = new TransformStream();
+			const writer = writable.getWriter();
+			const encoder = new TextEncoder();
+
+			// Start streaming in background
+			(async () => {
+				try {
+					const stream = agent.stream({ messages: body.messages });
+
+					for await (const chunk of stream.textStream) {
+						await writer.write(encoder.encode(chunk));
+					}
+				} catch (error) {
+					console.error('Stream error:', error);
+				} finally {
+					await writer.close();
+				}
+			})();
+
+			return new Response(readable, {
+				headers: {
+					'Content-Type': 'text/plain; charset=utf-8',
+					'Transfer-Encoding': 'chunked',
+					'Cache-Control': 'no-cache',
+					'Access-Control-Allow-Origin': '*',
+					'Access-Control-Allow-Methods': 'POST, OPTIONS',
+					'Access-Control-Allow-Headers': 'Content-Type',
+				},
+			});
+
+		} catch (error) {
+			console.error('Chat error:', error);
+			return new Response(JSON.stringify({
+				error: error instanceof Error ? error.message : 'Unknown error'
+			}), {
+				status: 500,
+				headers: {
+					'Content-Type': 'application/json',
+					'Access-Control-Allow-Origin': '*',
+					'Access-Control-Allow-Methods': 'POST, OPTIONS',
+					'Access-Control-Allow-Headers': 'Content-Type',
+				},
+			});
+		}
 	}
 
 	/**
@@ -603,6 +859,20 @@ export default {
 		}
 
 		try {
+			// ========== AI Chat Route ==========
+			// POST /spaces/:spaceId/chat - AI chat endpoint
+			if (path.match(/^\/spaces\/[^/]+\/chat$/) && request.method === "POST") {
+				const spaceId = path.split("/")[2];
+				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
+
+				// Forward the chat request to the Durable Object
+				return stub.fetch(new URL("/chat", request.url).toString(), {
+					method: "POST",
+					headers: request.headers,
+					body: request.body,
+				});
+			}
+
 			// ========== Space Routes ==========
 
 			// GET /spaces/:spaceId - Get space info

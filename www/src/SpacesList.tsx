@@ -325,21 +325,16 @@ export function SpacesList() {
                         Rename Space
                       </ContextMenu.Item>
                       <ContextMenu.Item
-                        disabled={snap.spaceOrder.length <= 1}
                         onSelect={() => handleRemoveSpace(space.id)}
                         style={{
                           fontSize: "14px",
                           fontFamily: "'Inter', sans-serif",
                           fontWeight: "400",
-                          color:
-                            snap.spaceOrder.length <= 1 ? "#666" : "#ff6b6b",
                           backgroundColor: "transparent",
+                          color: "#fdfdfd",
+
                           padding: "8px 12px",
                           borderRadius: "6px",
-                          cursor:
-                            snap.spaceOrder.length <= 1
-                              ? "not-allowed"
-                              : "pointer",
                           outline: "none",
                           userSelect: "none",
                           display: "flex",
@@ -347,11 +342,9 @@ export function SpacesList() {
                           gap: "8px",
                         }}
                         onMouseEnter={(e) => {
-                          if (snap.spaceOrder.length > 1) {
-                            (
-                              e.currentTarget as HTMLElement
-                            ).style.backgroundColor = "#2d302f";
-                          }
+                          (
+                            e.currentTarget as HTMLElement
+                          ).style.backgroundColor = "#2d302f";
                         }}
                         onMouseLeave={(e) => {
                           (

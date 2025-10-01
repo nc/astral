@@ -11,7 +11,11 @@ declare namespace Cloudflare {
 		MY_DURABLE_OBJECT: DurableObjectNamespace<import("./src/index").MyDurableObject>;
 	}
 }
-interface Env extends Cloudflare.Env {}
+interface Env extends Cloudflare.Env {
+	SERPER_API_KEY: string;
+	OPENAI_API_KEY: string;
+	ANTHROPIC_API_KEY: string;
+}
 
 // Begin runtime types
 /*! *****************************************************************************

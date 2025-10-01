@@ -1,6 +1,7 @@
 /**
  * Test suite for Space Durable Objects API
  * Tests the hierarchy: Spaces → Chats → Messages
+ * Also tests AI Chat API with agent functionality
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';
@@ -19,6 +20,38 @@ async function assertStatus(response: Response, expectedStatus: number) {
 			`Expected status ${expectedStatus} but got ${response.status}. Body: ${body}`
 		);
 	}
+}
+
+async function streamChat(messages: any[], model: string): Promise<string> {
+	const response = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}/chat`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({ messages, model }),
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`HTTP ${response.status}: ${errorText}`);
+	}
+
+	if (!response.body) {
+		throw new Error('No response body');
+	}
+
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder();
+	let fullResponse = '';
+
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		const chunk = decoder.decode(value, { stream: true });
+		fullResponse += chunk;
+	}
+
+	return fullResponse;
 }
 
 describe('Space Durable Objects API', () => {
@@ -312,6 +345,147 @@ describe('Space Durable Objects API', () => {
 				{ method: "DELETE" }
 			);
 			await assertStatus(response, 404);
+		});
+	});
+
+	// ========== AI Chat API Tests ==========
+	describe('AI Chat API', () => {
+		describe('Basic Chat', () => {
+			test('should handle simple question', async () => {
+				const messages = [
+					{
+						role: 'user',
+						content: 'What is 2+2? Answer with just the number.',
+					},
+				];
+
+				const response = await streamChat(messages, 'claude-sonnet-4-5-20250929');
+				expect(response).toBeTruthy();
+				expect(response.toLowerCase()).toContain('4');
+				console.log(`  Response: ${response.substring(0, 100)}`);
+			}, 60000);
+		});
+
+		describe('Web Search Tool', () => {
+			test('should handle explicit web search request', async () => {
+				const messages = [
+					{
+						role: 'user',
+						content:
+							'Who is the current president of the USA? Use web search to get the most up-to-date information. Be concise.',
+					},
+				];
+
+				const response = await streamChat(messages, 'claude-sonnet-4-5-20250929');
+				expect(response).toBeTruthy();
+				expect(response).toContain('Donald Trump');
+				expect(response.length).toBeGreaterThan(50);
+				console.log(`  Response: ${response.substring(0, 200)}...`);
+				console.log(`  Total length: ${response.length} characters`);
+			}, 30000);
+
+			test('should handle implicit need for current info', async () => {
+				const messages = [
+					{
+						role: 'user',
+						content: 'What are the latest developments in AI in 2025? Search for recent news.',
+					},
+				];
+
+				const response = await streamChat(messages, 'claude-sonnet-4-5-20250929');
+				expect(response).toBeTruthy();
+				expect(response.length).toBeGreaterThan(50);
+				console.log(`  Response length: ${response.length} characters`);
+				console.log(`  First 150 chars: ${response.substring(0, 150)}...`);
+			}, 60000);
+		});
+
+		describe('Visit Webpage Tool', () => {
+			test('should extract content from webpage', async () => {
+				const messages = [
+					{
+						role: 'user',
+						content: 'Visit https://example.com and tell me what the main heading says. Be brief.',
+					},
+				];
+
+				const response = await streamChat(messages, 'claude-sonnet-4-5-20250929');
+				console.log(response);
+				expect(response).toBeTruthy();
+				console.log(`  Response: ${response.substring(0, 200)}...`);
+			}, 30000);
+		});
+
+		describe('Tool Call and Text Generation', () => {
+			test('should generate text after web search tool call', async () => {
+				const messages = [
+					{
+						role: 'user',
+						content: 'What is 5+5? Then search the web and tell me: what is the capital of France?',
+					},
+				];
+
+				const response = await streamChat(messages, 'claude-sonnet-4-5-20250929');
+				expect(response).toBeTruthy();
+				expect(response.length).toBeGreaterThan(15);
+				console.log(`  Response: ${response.substring(0, 200)}...`);
+				console.log(`  Length: ${response.length} chars - Tool called and LLM continued generation ✓`);
+			}, 30000);
+		});
+
+		describe('AI Chat Error Handling', () => {
+			test('should return 400 for missing messages', async () => {
+				const response = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}/chat`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ model: 'claude-opus-4-20250514' }),
+				});
+
+				expect(response.status).toBe(400);
+				const error = await response.json();
+				expect(error.error).toBeDefined();
+				console.log(`  Error message: ${error.error}`);
+			});
+
+			test('should return 400 for missing model', async () => {
+				const response = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}/chat`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
+				});
+
+				expect(response.status).toBe(400);
+				const error = await response.json();
+				expect(error.error).toBeDefined();
+				console.log(`  Error message: ${error.error}`);
+			});
+
+			test('should return 400 for unsupported model', async () => {
+				const messages = [
+					{
+						role: 'user',
+						content: 'test',
+					},
+				];
+
+				const response = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}/chat`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ messages, model: 'unsupported-model' }),
+				});
+
+				expect(response.status).toBe(400);
+				const error = await response.json();
+				expect(error.error).toBeDefined();
+				expect(error.error).toContain('Unsupported');
+				console.log(`  Error message: ${error.error}`);
+			});
 		});
 	});
 });

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+// import { useEffect } from "react";
 import { useSnapshot } from "valtio";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { store, actions, type Space as ISpace } from "./store";
@@ -10,13 +10,15 @@ function App() {
   const snap = useSnapshot(store);
 
   // Initialize with a default space if none exist
-  useEffect(() => {
-    if (snap.spaceOrder.length === 0) {
-      actions.createSpace("My First Space");
-    }
-  }, [snap.spaceOrder.length]);
+  // useEffect(() => {
+  //   if (snap.spaceOrder.length === 0) {
+  //     actions.createSpace("My First Space");
+  //   }
+  // }, [snap.spaceOrder.length]);
 
-  const activeSpace = snap.activeSpaceId ? snap.spaces[snap.activeSpaceId] : undefined;
+  const activeSpace = snap.activeSpaceId
+    ? snap.spaces[snap.activeSpaceId]
+    : undefined;
 
   return (
     <div
@@ -75,7 +77,7 @@ function App() {
             fontSize: "18px",
           }}
         >
-          Select a space to get started
+          Select or create a new space to get started
         </div>
       )}
     </div>

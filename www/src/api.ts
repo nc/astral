@@ -1,10 +1,14 @@
+// Get backend URL from environment or default to localhost
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8787';
+const SPACE_ID = import.meta.env.VITE_SPACE_ID || 'default-space';
+
 export async function sendMessage(
-  messages: Array<{role: 'user' | 'assistant', content: string}>, 
+  messages: Array<{role: 'user' | 'assistant', content: string}>,
   model: string,
   onChunk: (chunk: string) => void
 ): Promise<void> {
   try {
-    const response = await fetch('http://localhost:3001/api/chat', {
+    const response = await fetch(`${BACKEND_URL}/spaces/${SPACE_ID}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

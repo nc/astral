@@ -83,9 +83,6 @@ export const actions = {
   removeSpace: (spaceId: string): void => {
     if (!store.spaces[spaceId]) throw new Error('Space not found')
 
-    // Don't allow removing the last space
-    if (store.spaceOrder.length <= 1) throw new Error('Cannot remove the last space')
-
     // Find index in order array
     const spaceIndex = store.spaceOrder.indexOf(spaceId)
 
