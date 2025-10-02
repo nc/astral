@@ -192,13 +192,10 @@ export function Space({ space }: SpaceProps) {
     }
   }, []); // Only on mount
 
-  // Check if space has any chats with messages
-  const hasChatsWithMessages = space.chatOrder.some(
-    (chatId) => space.chats[chatId].messages.length > 0
-  );
-
-  // If no chats exist or no chats have messages, show empty state
-  if (space.chatOrder.length === 0 || !hasChatsWithMessages) {
+  // If no chats exist, show empty state
+  // Note: We removed the hasChatsWithMessages check because messages are loaded
+  // lazily when a chat becomes active, so they may be empty initially
+  if (space.chatOrder.length === 0) {
     return <EmptySpaceState spaceId={space.id} />;
   }
 

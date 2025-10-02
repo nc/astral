@@ -156,8 +156,16 @@ export function Chat({ chat }: ChatProps) {
 
     console.log("Sending message history:", messageHistory);
 
+    // Get the space ID for this chat
+    const spaceId = snap.activeSpaceId;
+    if (!spaceId) {
+      console.error('No active space ID');
+      actions.setLoading(chat.id, false);
+      return;
+    }
+
     try {
-      await sendMessage(messageHistory, chat.model!, (chunk: string) => {
+      await sendMessage(spaceId, chat.id, messageHistory, chat.model!, (chunk: string) => {
         actions.appendToMessage(chat.id, assistantMessage.id, chunk);
       });
     } catch (error) {
@@ -409,6 +417,7 @@ export function Chat({ chat }: ChatProps) {
           chatId={chat.id}
           selectedModel={chat.model}
           input={chat.input}
+          spaceId={snap.activeSpaceId!}
           isLoading={chat.isLoading}
         />
       ) : (

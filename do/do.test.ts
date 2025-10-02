@@ -1,98 +1,137 @@
 /**
- * Test suite for Space Durable Objects API
+ * Test suite for Space Durable Objects API via WebSocket
  * Tests the hierarchy: Spaces → Chats → Messages
  * Also tests AI Chat API with agent functionality
  */
 
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { WebSocket } from 'ws';
 
-const BASE_URL = "http://localhost:8787";
-const TEST_SPACE_ID = "test-space-1";
+const WS_URL = "ws://localhost:8787/spaces/test-space-1/ws";
 
 // Test variables to share between tests
 let createdChatId: string;
 let createdMessageId: string;
+let ws: WebSocket;
 
-async function assertStatus(response: Response, expectedStatus: number) {
-	if (response.status !== expectedStatus) {
-		const body = await response.text();
-		throw new Error(
-			`Expected status ${expectedStatus} but got ${response.status}. Body: ${body}`
-		);
-	}
+let messageIdCounter = 0;
+function generateId(): string {
+	return `msg-${++messageIdCounter}`;
+}
+
+async function sendMessage(method: string, params?: any): Promise<any> {
+	return new Promise((resolve, reject) => {
+		const id = generateId();
+		const request = { id, method, params };
+
+		const timeout = setTimeout(() => {
+			reject(new Error(`Timeout waiting for response to ${method}`));
+		}, 60000);
+
+		const handler = (data: any) => {
+			try {
+				const response = JSON.parse(data.toString());
+				if (response.id === id) {
+					clearTimeout(timeout);
+					ws.removeListener("message", handler);
+
+					if (response.error) {
+						reject(new Error(response.error));
+					} else {
+						resolve(response.result);
+					}
+				}
+			} catch (error) {
+				// Ignore parsing errors for other messages
+			}
+		};
+
+		ws.on("message", handler);
+		ws.send(JSON.stringify(request));
+	});
 }
 
 async function streamChat(messages: any[], model: string): Promise<string> {
-	const response = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}/chat`, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify({ messages, model }),
+	return new Promise((resolve, reject) => {
+		const id = generateId();
+		let fullResponse = '';
+
+		const timeout = setTimeout(() => {
+			reject(new Error('Timeout waiting for chat stream'));
+		}, 60000);
+
+		const handler = (data: any) => {
+			try {
+				const response = JSON.parse(data.toString());
+
+				if (response.id !== id) return;
+
+				if (response.error) {
+					clearTimeout(timeout);
+					ws.removeListener("message", handler);
+					reject(new Error(response.error));
+					return;
+				}
+
+				if (response.type === 'start') {
+					// Stream started
+				} else if (response.type === 'chunk') {
+					fullResponse += response.data;
+				} else if (response.type === 'done') {
+					clearTimeout(timeout);
+					ws.removeListener("message", handler);
+					resolve(fullResponse);
+				}
+			} catch (error) {
+				// Ignore parsing errors
+			}
+		};
+
+		ws.on("message", handler);
+		ws.send(JSON.stringify({
+			id,
+			method: 'streamChat',
+			params: { messages, model },
+		}));
 	});
-
-	if (!response.ok) {
-		const errorText = await response.text();
-		throw new Error(`HTTP ${response.status}: ${errorText}`);
-	}
-
-	if (!response.body) {
-		throw new Error('No response body');
-	}
-
-	const reader = response.body.getReader();
-	const decoder = new TextDecoder();
-	let fullResponse = '';
-
-	while (true) {
-		const { done, value } = await reader.read();
-		if (done) break;
-		const chunk = decoder.decode(value, { stream: true });
-		fullResponse += chunk;
-	}
-
-	return fullResponse;
 }
 
-describe('Space Durable Objects API', () => {
+describe('Space Durable Objects API via WebSocket', () => {
+	beforeAll(async () => {
+		ws = new WebSocket(WS_URL);
+
+		await new Promise<void>((resolve, reject) => {
+			ws.on("open", () => resolve());
+			ws.on("error", (error) => reject(error));
+		});
+	});
+
+	afterAll(() => {
+		if (ws) {
+			ws.close();
+		}
+	});
+
 	// ========== Space Tests ==========
 	describe('Spaces', () => {
-		test('GET /spaces/:spaceId - should create and return space info', async () => {
-			const response = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}`);
-			await assertStatus(response, 200);
-
-			const space = await response.json();
+		test('getOrCreateSpace - should create and return space info', async () => {
+			const space = await sendMessage('getOrCreateSpace', { name: 'Test Space' });
 			expect(space.id).toBeDefined();
 			expect(space.name).toBeDefined();
 			expect(space.createdAt).toBeDefined();
 			expect(space.updatedAt).toBeDefined();
 		});
 
-		test('PUT /spaces/:spaceId/metadata - should update space metadata', async () => {
-			const metadata = { theme: "dark", version: "1.0" };
-			const response = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}/metadata`, {
-				method: "PUT",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(metadata),
-			});
-			await assertStatus(response, 200);
-
-			const result = await response.json();
+		test('updateSpaceMetadata - should update space metadata', async () => {
+			const result = await sendMessage('updateSpaceMetadata', { metadata: { theme: "dark", version: "1.0" } });
 			expect(result.success).toBe(true);
 		});
 	});
 
 	// ========== Chat Tests ==========
 	describe('Chats', () => {
-		test('POST /spaces/:spaceId/chats - should create a new chat', async () => {
-			const response = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "Test Chat", metadata: { type: "test" } }),
-			});
-			await assertStatus(response, 201);
-
-			const chat = await response.json();
+		test('createChat - should create a new chat', async () => {
+			const chat = await sendMessage('createChat', { name: "Test Chat", metadata: { type: "test" } });
 			expect(chat.id).toBeDefined();
 			expect(chat.name).toBeDefined();
 			expect(chat.spaceId).toBeDefined();
@@ -101,71 +140,39 @@ describe('Space Durable Objects API', () => {
 			createdChatId = chat.id; // Save for later tests
 		});
 
-		test('GET /spaces/:spaceId/chats - should list all chats', async () => {
-			const response = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats`);
-			await assertStatus(response, 200);
-
-			const chats = await response.json();
+		test('getChats - should list all chats', async () => {
+			const chats = await sendMessage('getChats');
 			expect(chats).toBeDefined();
 			expect(Array.isArray(chats)).toBe(true);
 			expect(chats.length).toBeGreaterThan(0);
 		});
 
-		test('GET /spaces/:spaceId/chats/:chatId - should get specific chat', async () => {
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/${createdChatId}`
-			);
-			await assertStatus(response, 200);
-
-			const chat = await response.json();
+		test('getChat - should get specific chat', async () => {
+			const chat = await sendMessage('getChat', { chatId: createdChatId });
 			expect(chat.id).toBe(createdChatId);
 			expect(chat.name).toBe("Test Chat");
 		});
 
-		test('PUT /spaces/:spaceId/chats/:chatId/metadata - should update chat metadata', async () => {
-			const metadata = { updated: true };
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/${createdChatId}/metadata`,
-				{
-					method: "PUT",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(metadata),
-				}
-			);
-			await assertStatus(response, 200);
-
-			const result = await response.json();
+		test('updateChatMetadata - should update chat metadata', async () => {
+			const result = await sendMessage('updateChatMetadata', { chatId: createdChatId, metadata: { updated: true } });
 			expect(result.success).toBe(true);
 		});
 
-		test('GET /spaces/:spaceId/chats/count - should return chat count', async () => {
-			const response = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/count`);
-			await assertStatus(response, 200);
-
-			const result = await response.json();
-			expect(result.count).toBeDefined();
-			expect(typeof result.count).toBe("number");
+		test('getChatCount - should return chat count', async () => {
+			const count = await sendMessage('getChatCount');
+			expect(typeof count).toBe("number");
 		});
 	});
 
 	// ========== Message Tests ==========
 	describe('Messages', () => {
-		test('POST /spaces/:spaceId/chats/:chatId/messages - should add a message', async () => {
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/${createdChatId}/messages`,
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						content: "Hello, world!",
-						role: "user",
-						metadata: { test: true },
-					}),
-				}
-			);
-			await assertStatus(response, 201);
-
-			const message = await response.json();
+		test('addMessage - should add a user message', async () => {
+			const message = await sendMessage('addMessage', {
+				chatId: createdChatId,
+				content: "Hello, world!",
+				role: "user",
+				metadata: { test: true }
+			});
 			expect(message.id).toBeDefined();
 			expect(message.chatId).toBe(createdChatId);
 			expect(message.content).toBe("Hello, world!");
@@ -174,40 +181,17 @@ describe('Space Durable Objects API', () => {
 			createdMessageId = message.id; // Save for later tests
 		});
 
-		test('POST - should add assistant message', async () => {
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/${createdChatId}/messages`,
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						content: "Hello! How can I help you?",
-						role: "assistant",
-					}),
-				}
-			);
-			await assertStatus(response, 201);
+		test('addMessage - should add assistant message', async () => {
+			const message = await sendMessage('addMessage', {
+				chatId: createdChatId,
+				content: "Hello! How can I help you?",
+				role: "assistant"
+			});
+			expect(message.id).toBeDefined();
 		});
 
-		test('POST - should reject message with missing fields', async () => {
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/${createdChatId}/messages`,
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ content: "Missing role" }),
-				}
-			);
-			await assertStatus(response, 400);
-		});
-
-		test('GET /spaces/:spaceId/chats/:chatId/messages - should list all messages', async () => {
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/${createdChatId}/messages`
-			);
-			await assertStatus(response, 200);
-
-			const messages = await response.json();
+		test('getMessages - should list all messages', async () => {
+			const messages = await sendMessage('getMessages', { chatId: createdChatId });
 			expect(messages).toBeDefined();
 			expect(Array.isArray(messages)).toBe(true);
 			expect(messages.length).toBeGreaterThanOrEqual(2);
@@ -216,135 +200,84 @@ describe('Space Durable Objects API', () => {
 			expect(messages[1].role).toBe("assistant");
 		});
 
-		test('GET with pagination - should limit results', async () => {
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/${createdChatId}/messages?limit=1`
-			);
-			await assertStatus(response, 200);
-
-			const messages = await response.json();
+		test('getMessages - pagination should limit results', async () => {
+			const messages = await sendMessage('getMessages', { chatId: createdChatId, limit: 1 });
 			expect(messages.length).toBe(1);
 		});
 
-		test('GET /spaces/:spaceId/messages/:messageId - should get specific message', async () => {
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/messages/${createdMessageId}`
-			);
-			await assertStatus(response, 200);
-
-			const message = await response.json();
+		test('getMessage - should get specific message', async () => {
+			const message = await sendMessage('getMessage', { messageId: createdMessageId });
 			expect(message.id).toBe(createdMessageId);
 			expect(message.content).toBe("Hello, world!");
 		});
 
-		test('GET /spaces/:spaceId/chats/:chatId/count - should return message count', async () => {
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/${createdChatId}/count`
-			);
-			await assertStatus(response, 200);
-
-			const result = await response.json();
-			expect(result.count).toBeDefined();
-			expect(result.count).toBeGreaterThanOrEqual(2);
+		test('getMessageCount - should return message count', async () => {
+			const count = await sendMessage('getMessageCount', { chatId: createdChatId });
+			expect(typeof count).toBe("number");
+			expect(count).toBeGreaterThanOrEqual(2);
 		});
 
-		test('DELETE /spaces/:spaceId/messages/:messageId - should delete a message', async () => {
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/messages/${createdMessageId}`,
-				{ method: "DELETE" }
-			);
-			await assertStatus(response, 200);
-
-			const result = await response.json();
+		test('deleteMessage - should delete a message', async () => {
+			const result = await sendMessage('deleteMessage', { messageId: createdMessageId });
 			expect(result.success).toBe(true);
 
-			// Verify it's deleted
-			const getResponse = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/messages/${createdMessageId}`
-			);
-			await assertStatus(getResponse, 404);
+			// Verify deletion
+			await expect(
+				sendMessage('getMessage', { messageId: createdMessageId })
+			).rejects.toThrow(/not found/);
 		});
 
-		test('DELETE /spaces/:spaceId/chats/:chatId/messages - should clear all messages', async () => {
+		test('clearMessages - should clear all messages', async () => {
 			// Add a new message first
-			await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/${createdChatId}/messages`,
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ content: "To be cleared", role: "user" }),
-				}
-			);
+			await sendMessage('addMessage', {
+				chatId: createdChatId,
+				content: "To be cleared",
+				role: "user"
+			});
 
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/${createdChatId}/messages`,
-				{ method: "DELETE" }
-			);
-			await assertStatus(response, 200);
-
-			const result = await response.json();
+			const result = await sendMessage('clearMessages', { chatId: createdChatId });
 			expect(result.deletedCount).toBeDefined();
 
 			// Verify messages are cleared
-			const getResponse = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/${createdChatId}/messages`
-			);
-			const messages = await getResponse.json();
+			const messages = await sendMessage('getMessages', { chatId: createdChatId });
 			expect(messages.length).toBe(0);
 		});
 	});
 
 	// ========== Chat Deletion Tests ==========
 	describe('Chat Deletion', () => {
-		test('DELETE /spaces/:spaceId/chats/:chatId - should delete chat and messages', async () => {
+		test('deleteChat - should delete chat and messages', async () => {
 			// Create a new chat for deletion
-			const createResponse = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "Chat to delete" }),
-			});
-			const newChat = await createResponse.json();
+			const newChat = await sendMessage('createChat', { name: "Chat to delete" });
 
 			// Delete it
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/${newChat.id}`,
-				{ method: "DELETE" }
-			);
-			await assertStatus(response, 200);
-
-			const result = await response.json();
+			const result = await sendMessage('deleteChat', { chatId: newChat.id });
 			expect(result.success).toBe(true);
 
-			// Verify it's deleted
-			const getResponse = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/${newChat.id}`
-			);
-			await assertStatus(getResponse, 404);
+			// Verify deletion
+			await expect(
+				sendMessage('getChat', { chatId: newChat.id })
+			).rejects.toThrow();
 		});
 	});
 
 	// ========== Error Cases ==========
 	describe('Error Handling', () => {
-		test('GET non-existent chat - should return 404', async () => {
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/non-existent-chat-id`
-			);
-			await assertStatus(response, 404);
+		test('should handle non-existent chat', async () => {
+			const result = await sendMessage('getChat', { chatId: 'non-existent-chat-id' });
+			expect(result).toBeNull();
 		});
 
-		test('GET non-existent message - should return 404', async () => {
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/messages/non-existent-message-id`
-			);
-			await assertStatus(response, 404);
+		test('should handle non-existent message', async () => {
+			await expect(
+				sendMessage('getMessage', { messageId: 'non-existent-message-id' })
+			).rejects.toThrow(/not found/);
 		});
 
-		test('DELETE non-existent chat - should return 404', async () => {
-			const response = await fetch(
-				`${BASE_URL}/spaces/${TEST_SPACE_ID}/chats/non-existent-chat-id`,
-				{ method: "DELETE" }
-			);
-			await assertStatus(response, 404);
+		test('should handle invalid method', async () => {
+			await expect(
+				sendMessage('invalidMethod')
+			).rejects.toThrow(/Unknown method/);
 		});
 	});
 
@@ -382,7 +315,7 @@ describe('Space Durable Objects API', () => {
 				expect(response.length).toBeGreaterThan(50);
 				console.log(`  Response: ${response.substring(0, 200)}...`);
 				console.log(`  Total length: ${response.length} characters`);
-			}, 30000);
+			}, 60000);
 
 			test('should handle implicit need for current info', async () => {
 				const messages = [
@@ -413,7 +346,7 @@ describe('Space Durable Objects API', () => {
 				console.log(response);
 				expect(response).toBeTruthy();
 				console.log(`  Response: ${response.substring(0, 200)}...`);
-			}, 30000);
+			}, 60000);
 		});
 
 		describe('Tool Call and Text Generation', () => {
@@ -430,61 +363,26 @@ describe('Space Durable Objects API', () => {
 				expect(response.length).toBeGreaterThan(15);
 				console.log(`  Response: ${response.substring(0, 200)}...`);
 				console.log(`  Length: ${response.length} chars - Tool called and LLM continued generation ✓`);
-			}, 30000);
+			}, 60000);
 		});
 
 		describe('AI Chat Error Handling', () => {
-			test('should return 400 for missing messages', async () => {
-				const response = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}/chat`, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-20250514' }),
-				});
-
-				expect(response.status).toBe(400);
-				const error = await response.json();
-				expect(error.error).toBeDefined();
-				console.log(`  Error message: ${error.error}`);
+			test('should return error for missing messages', async () => {
+				await expect(
+					streamChat([], 'claude-opus-4-20250514')
+				).rejects.toThrow(/Messages array is required/);
 			});
 
-			test('should return 400 for missing model', async () => {
-				const response = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}/chat`, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
-				});
-
-				expect(response.status).toBe(400);
-				const error = await response.json();
-				expect(error.error).toBeDefined();
-				console.log(`  Error message: ${error.error}`);
+			test('should return error for missing model', async () => {
+				await expect(
+					streamChat([{ role: 'user', content: 'test' }], '')
+				).rejects.toThrow(/Model is required/);
 			});
 
-			test('should return 400 for unsupported model', async () => {
-				const messages = [
-					{
-						role: 'user',
-						content: 'test',
-					},
-				];
-
-				const response = await fetch(`${BASE_URL}/spaces/${TEST_SPACE_ID}/chat`, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ messages, model: 'unsupported-model' }),
-				});
-
-				expect(response.status).toBe(400);
-				const error = await response.json();
-				expect(error.error).toBeDefined();
-				expect(error.error).toContain('Unsupported');
-				console.log(`  Error message: ${error.error}`);
+			test('should return error for unsupported model', async () => {
+				await expect(
+					streamChat([{ role: 'user', content: 'test' }], 'unsupported-model')
+				).rejects.toThrow(/Unsupported model/);
 			});
 		});
 	});

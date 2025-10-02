@@ -4,10 +4,11 @@
 declare namespace Cloudflare {
 	interface GlobalProps {
 		mainModule: typeof import("./src/index");
-		durableNamespaces: "SpaceDurableObject" | "MyDurableObject";
+		durableNamespaces: "SpaceDurableObject" | "SpaceRegistryDurableObject" | "MyDurableObject";
 	}
 	interface Env {
 		SPACE: DurableObjectNamespace<import("./src/index").SpaceDurableObject>;
+		SPACE_REGISTRY: DurableObjectNamespace<import("./src/index").SpaceRegistryDurableObject>;
 		MY_DURABLE_OBJECT: DurableObjectNamespace<import("./src/index").MyDurableObject>;
 	}
 }

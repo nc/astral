@@ -1,5 +1,6 @@
 import { proxy } from 'valtio'
 import { v4 as uuidv4 } from 'uuid'
+import { getWebSocketClient, getRegistryClient } from './websocket-client'
 
 export interface Message {
   id: string
@@ -38,6 +39,8 @@ export interface AppState {
   // Temporary state for empty space
   emptySpaceInput: string
   emptySpaceModels: string[] // Changed to array for multi-selection
+  // Default model for new chats and spaces
+  defaultModel: string
 }
 
 export const store = proxy<AppState>({
@@ -49,14 +52,90 @@ export const store = proxy<AppState>({
   chatComposerHeight: 104, // Default height
   chatHeaderHeight: 56, // Default height
   emptySpaceInput: '',
-  emptySpaceModels: ['claude-opus-4-1-20250805'] // Default to array with one model
+  emptySpaceModels: ['claude-sonnet-4-5-20250929'], // Default to array with one model
+  defaultModel: 'claude-sonnet-4-5-20250929'
 })
 
 export const actions = {
+  // Initialization
+  init: async (): Promise<void> => {
+    console.log('Initializing app from backend...');
+    try {
+      const registry = await getRegistryClient();
+      const spaces = await registry.getSpaces();
+      console.log(`Loaded ${spaces.length} spaces from registry:`, spaces);
+
+      // Load all spaces and their chats
+      for (const spaceData of spaces) {
+        if (!store.spaces[spaceData.id]) {
+          console.log(`Loading space: ${spaceData.name} (${spaceData.id})`);
+          // Create space in local store
+          const space: Space = {
+            id: spaceData.id,
+            name: spaceData.name,
+            chats: {},
+            chatOrder: [],
+            createdAt: spaceData.createdAt
+          };
+          store.spaces[space.id] = space;
+          store.spaceOrder.push(space.id);
+
+          // Load chats for this space
+          try {
+            const client = await getWebSocketClient(spaceData.id);
+            const backendChats = await client.getChats();
+            console.log(`  Loaded ${backendChats.length} chats for space ${spaceData.id}`);
+
+            // Backend returns chats ordered by position ASC, so we can add them in order
+            for (const backendChat of backendChats) {
+              console.log(`    Chat: ${backendChat.name} (${backendChat.id}) at position ${backendChat.position}`);
+
+              // Load messages for this chat
+              const backendMessages = await client.getMessages(backendChat.id);
+              console.log(`      Loaded ${backendMessages.length} messages`);
+
+              const messages = backendMessages.map(msg => ({
+                id: msg.id,
+                role: msg.role as 'user' | 'assistant',
+                content: msg.content,
+                timestamp: msg.timestamp
+              }));
+
+              space.chats[backendChat.id] = {
+                id: backendChat.id,
+                title: backendChat.name,
+                messages: messages,
+                isLoading: false,
+                input: '',
+                streamingMessageId: null,
+                createdAt: backendChat.createdAt,
+                model: store.defaultModel
+              };
+              space.chatOrder.push(backendChat.id);
+            }
+          } catch (error) {
+            console.error(`Failed to load chats for space ${spaceData.id}:`, error);
+          }
+        }
+      }
+
+      // Set first space as active if none is active
+      if (!store.activeSpaceId && store.spaceOrder.length > 0) {
+        console.log(`Setting active space to: ${store.spaceOrder[0]}`);
+        await actions.setActiveSpace(store.spaceOrder[0]);
+      }
+      console.log('Initialization complete');
+    } catch (error) {
+      console.error('Failed to initialize from backend:', error);
+    }
+  },
+
   // Space actions
-  createSpace: (name: string): Space => {
+  createSpace: async (name: string): Promise<Space> => {
+    // Create space locally first for immediate UI feedback
+    const spaceId = uuidv4();
     const space: Space = {
-      id: uuidv4(),
+      id: spaceId,
       name,
       chats: {},
       chatOrder: [],
@@ -65,26 +144,94 @@ export const actions = {
     store.spaces[space.id] = space
     store.spaceOrder.push(space.id)
     store.activeSpaceId = space.id
-    store.activeChatId = null // Clear active chat since no chats exist yet
+    store.activeChatId = null
+
+    // Sync with backend
+    try {
+      const client = await getWebSocketClient(spaceId);
+      const backendSpace = await client.getOrCreateSpace(name);
+      // Update with backend data
+      space.createdAt = backendSpace.createdAt;
+
+      // Register space in registry
+      const registry = await getRegistryClient();
+      await registry.registerSpace(spaceId, name);
+    } catch (error) {
+      console.error('Failed to sync space with backend:', error);
+    }
 
     return space
   },
 
-  setActiveSpace: (spaceId: string) => {
+  setActiveSpace: async (spaceId: string) => {
     store.activeSpaceId = spaceId
     const space = store.spaces[spaceId]
+
+    // Load chats from backend
+    try {
+      const client = await getWebSocketClient(spaceId);
+      const backendChats = await client.getChats();
+
+      // Sync backend chats with local store (backend returns ordered by position ASC)
+      const backendChatIds = new Set(backendChats.map(c => c.id));
+
+      // Remove chats that no longer exist in backend
+      space.chatOrder = space.chatOrder.filter(id => backendChatIds.has(id));
+
+      // Add or update chats from backend
+      for (const backendChat of backendChats) {
+        if (!space.chats[backendChat.id]) {
+          // Load messages for this chat
+          const backendMessages = await client.getMessages(backendChat.id);
+          console.log(`  Loaded ${backendMessages.length} messages for chat ${backendChat.id}`);
+
+          const messages = backendMessages.map(msg => ({
+            id: msg.id,
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content,
+            timestamp: msg.timestamp
+          }));
+
+          // Add new chat with messages
+          space.chats[backendChat.id] = {
+            id: backendChat.id,
+            title: backendChat.name,
+            messages: messages,
+            isLoading: false,
+            input: '',
+            streamingMessageId: null,
+            createdAt: backendChat.createdAt,
+            model: store.defaultModel
+          };
+        }
+      }
+
+      // Rebuild chatOrder based on backend position order
+      space.chatOrder = backendChats.map(chat => chat.id);
+    } catch (error) {
+      console.error('Failed to load chats from backend:', error);
+    }
+
     if (space && space.chatOrder.length > 0) {
-      store.activeChatId = space.chatOrder[0]
+      await actions.setActiveChat(space.chatOrder[0])
     } else {
       store.activeChatId = null
     }
   },
 
-  removeSpace: (spaceId: string): void => {
+  removeSpace: async (spaceId: string): Promise<void> => {
     if (!store.spaces[spaceId]) throw new Error('Space not found')
 
     // Find index in order array
     const spaceIndex = store.spaceOrder.indexOf(spaceId)
+
+    // Unregister from backend
+    try {
+      const registry = await getRegistryClient();
+      await registry.unregisterSpace(spaceId);
+    } catch (error) {
+      console.error('Failed to unregister space from backend:', error);
+    }
 
     // Remove the space
     delete store.spaces[spaceId]
@@ -106,7 +253,7 @@ export const actions = {
     }
   },
 
-  renameSpace: (spaceId: string, newName: string): void => {
+  renameSpace: async (spaceId: string, newName: string): Promise<void> => {
     const space = store.spaces[spaceId]
     if (!space) throw new Error('Space not found')
 
@@ -114,88 +261,180 @@ export const actions = {
     const trimmedName = newName.trim()
     if (!trimmedName) throw new Error('Space name cannot be empty')
 
+    // Update locally first
     space.name = trimmedName
+
+    // Sync with backend
+    try {
+      const client = await getWebSocketClient(spaceId);
+      await client.updateSpaceMetadata({ name: trimmedName });
+    } catch (error) {
+      console.error('Failed to sync space rename with backend:', error);
+    }
   },
 
   // Chat actions
-  createChat: (spaceId: string, title: string = 'New Chat'): Chat => {
-    const chatId = uuidv4()
-    console.log('Creating chat in space:', spaceId, chatId)
+  createChat: async (spaceId: string, title: string = 'New Chat', insertAtPosition?: number): Promise<Chat> => {
+    console.log('Creating chat in space:', spaceId, 'at position:', insertAtPosition)
     const space = store.spaces[spaceId]
     if (!space) throw new Error('Space not found')
 
-    const chat: Chat = {
-      id: chatId,
-      title,
-      messages: [],
-      isLoading: false,
-      input: '',
-      streamingMessageId: null,
-      createdAt: Date.now(),
-      model: 'claude-opus-4-1-20250805'
+    // Determine position: if not specified, append to end
+    const position = insertAtPosition !== undefined ? insertAtPosition : space.chatOrder.length;
+
+    // Create chat in backend first to get the real ID
+    try {
+      const client = await getWebSocketClient(spaceId);
+      const backendChat = await client.createChat(title, { type: 'chat' }, position);
+
+      const chat: Chat = {
+        id: backendChat.id,
+        title: backendChat.name,
+        messages: [],
+        isLoading: false,
+        input: '',
+        streamingMessageId: null,
+        createdAt: backendChat.createdAt,
+        model: store.defaultModel
+      }
+
+      space.chats[chat.id] = chat
+      // Insert at the correct position in the local order
+      space.chatOrder.splice(position, 0, chat.id)
+      store.activeChatId = chat.id
+      return chat
+    } catch (error) {
+      console.error('Failed to create chat in backend:', error);
+      throw error;
+    }
+  },
+
+  setActiveChat: async (chatId: string) => {
+    store.activeChatId = chatId
+
+    // Load messages from backend
+    const spaceId = store.activeSpaceId;
+    if (!spaceId) {
+      console.log('setActiveChat: No active spaceId');
+      return;
     }
 
-    space.chats[chatId] = chat
-    space.chatOrder.push(chatId)
-    store.activeChatId = chat.id
-    return chat
+    const chat = actions.findChat(chatId);
+    if (!chat) {
+      console.log('setActiveChat: Chat not found', chatId);
+      return;
+    }
+
+    // Only load if messages are empty
+    if (chat.messages.length === 0) {
+      console.log(`Loading messages for chat ${chatId} in space ${spaceId}`);
+      try {
+        const client = await getWebSocketClient(spaceId);
+        const backendMessages = await client.getMessages(chatId);
+        console.log(`Loaded ${backendMessages.length} messages from backend`);
+
+        // Convert backend messages to store format
+        for (const backendMsg of backendMessages) {
+          chat.messages.push({
+            id: backendMsg.id,
+            role: backendMsg.role as 'user' | 'assistant',
+            content: backendMsg.content,
+            timestamp: backendMsg.timestamp
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load messages from backend:', error);
+      }
+    } else {
+      console.log(`Chat ${chatId} already has ${chat.messages.length} messages loaded`);
+    }
   },
 
-  setActiveChat: (chatId: string) => {
-    store.activeChatId = chatId
-  },
-
-  branchChat: (chatId: string): Chat => {
+  branchChat: async (chatId: string): Promise<Chat> => {
     const sourceChat = actions.findChat(chatId)
     if (!sourceChat) throw new Error('Source chat not found')
 
     // Find space containing this chat
     let space: Space | undefined
-    for (const spaceId of store.spaceOrder) {
-      if (store.spaces[spaceId].chats[chatId]) {
-        space = store.spaces[spaceId]
+    let spaceId: string | undefined
+    for (const sid of store.spaceOrder) {
+      if (store.spaces[sid].chats[chatId]) {
+        space = store.spaces[sid]
+        spaceId = sid
         break
       }
     }
-    if (!space) throw new Error('Space not found')
+    if (!space || !spaceId) throw new Error('Space not found')
 
-    // Clone the chat with new ID and title
+    // Find the index of the source chat - branch should be inserted right after
+    const sourceIndex = space.chatOrder.indexOf(chatId)
+    const branchPosition = sourceIndex + 1
+
+    // Create the branched chat in backend at the correct position
+    const client = await getWebSocketClient(spaceId);
+    const backendChat = await client.createChat(
+      sourceChat.title + ' (Branch)',
+      { type: 'branch', sourceChatId: chatId },
+      branchPosition
+    );
+
+    // Clone the chat locally
     const branchedChat: Chat = {
-      id: uuidv4(),
-      title: sourceChat.title + ' (Branch)',
+      id: backendChat.id,
+      title: backendChat.name,
       messages: [...sourceChat.messages.map(msg => ({ ...msg, id: uuidv4() }))],
       isLoading: false,
       input: '',
       streamingMessageId: null,
-      createdAt: Date.now(),
-      model: sourceChat.model // Keep the same model as the source
+      createdAt: backendChat.createdAt,
+      model: sourceChat.model
     }
 
-    // Find the index of the source chat and insert the branch right after it
-    const sourceIndex = space.chatOrder.indexOf(chatId)
+    // Add to local store at correct position
     space.chats[branchedChat.id] = branchedChat
-    space.chatOrder.splice(sourceIndex + 1, 0, branchedChat.id)
+    space.chatOrder.splice(branchPosition, 0, branchedChat.id)
+
+    // Save the cloned messages to backend
+    for (const msg of branchedChat.messages) {
+      try {
+        await client.addMessage(branchedChat.id, msg.content, msg.role, { timestamp: msg.timestamp });
+      } catch (error) {
+        console.error('Failed to save branched message:', error);
+      }
+    }
 
     // Set the branched chat as active
     store.activeChatId = branchedChat.id
     return branchedChat
   },
 
-  removeChat: (chatId: string): void => {
+  removeChat: async (chatId: string): Promise<void> => {
     // Find space containing this chat
     let space: Space | undefined
-    for (const spaceId of store.spaceOrder) {
-      if (store.spaces[spaceId].chats[chatId]) {
-        space = store.spaces[spaceId]
+    let spaceId: string | undefined
+    for (const sid of store.spaceOrder) {
+      if (store.spaces[sid].chats[chatId]) {
+        space = store.spaces[sid]
+        spaceId = sid
         break
       }
     }
-    if (!space) throw new Error('Space not found')
+    if (!space || !spaceId) throw new Error('Space not found')
 
     const chatIndex = space.chatOrder.indexOf(chatId)
     if (chatIndex === -1) throw new Error('Chat not found')
 
-    // Remove the chat
+    // Delete from backend first
+    try {
+      const client = await getWebSocketClient(spaceId);
+      await client.deleteChat(chatId);
+      console.log(`Chat ${chatId} deleted from backend`);
+    } catch (error) {
+      console.error('Failed to delete chat from backend:', error);
+      // Continue with local deletion even if backend fails
+    }
+
+    // Remove the chat locally
     delete space.chats[chatId]
     space.chatOrder.splice(chatIndex, 1)
 
@@ -321,12 +560,16 @@ export const actions = {
   },
 
   setEmptySpaceModels: (models: string[]) => {
-    store.emptySpaceModels = models.length > 0 ? models : ['claude-opus-4-1-20250805']
+    store.emptySpaceModels = models.length > 0 ? models : [store.defaultModel]
+  },
+
+  setDefaultModel: (model: string) => {
+    store.defaultModel = model
   },
 
   clearEmptySpaceState: () => {
     store.emptySpaceInput = ''
-    store.emptySpaceModels = ['claude-opus-4-1-20250805']
+    store.emptySpaceModels = [store.defaultModel]
   },
 
   // Helper functions

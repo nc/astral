@@ -51,7 +51,7 @@ export function EmptySpaceState({ spaceId }: EmptySpaceStateProps) {
           ? `New Chat (${model.split("-")[0]})` // e.g., "New Chat (claude)"
           : "New Chat";
 
-      const chat = actions.createChat(spaceId, chatTitle);
+      const chat = await actions.createChat(spaceId, chatTitle);
       actions.setModel(chat.id, model);
 
       // Add the user message
@@ -78,7 +78,7 @@ export function EmptySpaceState({ spaceId }: EmptySpaceStateProps) {
       console.log(`Sending message to ${model}:`, messageHistory);
 
       // Start generation for this chat (don't await - let them run in parallel)
-      sendMessage(messageHistory, model, (chunk: string) => {
+      sendMessage(spaceId, chat.id, messageHistory, model, (chunk: string) => {
         actions.appendToMessage(chat.id, assistantMessage.id, chunk);
       })
         .catch((error) => {

@@ -1,4 +1,4 @@
-// import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSnapshot } from "valtio";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { store, actions, type Space as ISpace } from "./store";
@@ -8,17 +8,30 @@ import "./App.css";
 
 function App() {
   const snap = useSnapshot(store);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Initialize with a default space if none exist
-  // useEffect(() => {
-  //   if (snap.spaceOrder.length === 0) {
-  //     actions.createSpace("My First Space");
-  //   }
-  // }, [snap.spaceOrder.length]);
+  // Initialize from backend on mount
+  useEffect(() => {
+    actions.init().then(() => {
+      setIsInitialized(true);
+      console.log('App initialized from backend');
+    }).catch(error => {
+      console.error('Failed to initialize app:', error);
+      setIsInitialized(true); // Still show UI even if init fails
+    });
+  }, []);
 
   const activeSpace = snap.activeSpaceId
     ? snap.spaces[snap.activeSpaceId]
     : undefined;
+
+  if (!isInitialized) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100vw', height: '100vh' }}>
+        <div>Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div

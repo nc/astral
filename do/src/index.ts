@@ -27,16 +27,16 @@ export class SpaceDurableObject extends DurableObject<Env> {
 		super(ctx, env);
 		this.spaceId = ctx.id.toString();
 		this.initializeDatabase();
+		this.migrateDatabase();
 	}
 
 	/**
-	 * Handle both HTTP and WebSocket requests
+	 * Handle WebSocket connections only
 	 */
 	async fetch(request: Request): Promise<Response> {
 		const upgradeHeader = request.headers.get("Upgrade");
-		const url = new URL(request.url);
 
-		// Handle WebSocket upgrade
+		// Only accept WebSocket connections
 		if (upgradeHeader === "websocket") {
 			const webSocketPair = new WebSocketPair();
 			const [client, server] = Object.values(webSocketPair);
@@ -49,255 +49,7 @@ export class SpaceDurableObject extends DurableObject<Env> {
 			});
 		}
 
-		// Handle HTTP /chat endpoint
-		if (url.pathname === "/chat" && request.method === "POST") {
-			return this.handleChatRequest(request);
-		}
-
-		return new Response("Expected WebSocket or /chat POST request", { status: 400 });
-	}
-
-	/**
-	 * Handle chat API request with streaming
-	 */
-	private async handleChatRequest(request: Request): Promise<Response> {
-		try {
-			const body = await request.json() as {
-				messages: any[];
-				model: string;
-			};
-
-			if (!body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
-				return new Response(JSON.stringify({ error: 'Messages array is required' }), {
-					status: 400,
-					headers: {
-						'Content-Type': 'application/json',
-						'Access-Control-Allow-Origin': '*',
-						'Access-Control-Allow-Methods': 'POST, OPTIONS',
-						'Access-Control-Allow-Headers': 'Content-Type',
-					},
-				});
-			}
-
-			if (!body.model) {
-				return new Response(JSON.stringify({ error: 'Model is required' }), {
-					status: 400,
-					headers: {
-						'Content-Type': 'application/json',
-						'Access-Control-Allow-Origin': '*',
-						'Access-Control-Allow-Methods': 'POST, OPTIONS',
-						'Access-Control-Allow-Headers': 'Content-Type',
-					},
-				});
-			}
-
-			// Get API keys from environment
-			const anthropicKey = this.env.ANTHROPIC_API_KEY;
-			const openaiKey = this.env.OPENAI_API_KEY;
-			const serperKey = this.env.SERPER_API_KEY;
-
-			if (!anthropicKey && body.model.startsWith('claude-')) {
-				return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }), {
-					status: 500,
-					headers: {
-						'Content-Type': 'application/json',
-						'Access-Control-Allow-Origin': '*',
-						'Access-Control-Allow-Methods': 'POST, OPTIONS',
-						'Access-Control-Allow-Headers': 'Content-Type',
-					},
-				});
-			}
-
-			if (!openaiKey && (body.model.startsWith('gpt-') || body.model.startsWith('o1-') || body.model.startsWith('o3-'))) {
-				return new Response(JSON.stringify({ error: 'OPENAI_API_KEY not configured' }), {
-					status: 500,
-					headers: {
-						'Content-Type': 'application/json',
-						'Access-Control-Allow-Origin': '*',
-						'Access-Control-Allow-Methods': 'POST, OPTIONS',
-						'Access-Control-Allow-Headers': 'Content-Type',
-					},
-				});
-			}
-
-			// Initialize AI providers
-			const anthropic = createAnthropic({ apiKey: anthropicKey });
-			const openai = createOpenAI({ apiKey: openaiKey });
-
-			// Determine model provider
-			let modelProvider;
-			if (body.model.startsWith('claude-')) {
-				modelProvider = anthropic(body.model);
-			} else if (body.model.startsWith('gpt-') || body.model.startsWith('o1-') || body.model.startsWith('o3-')) {
-				modelProvider = openai(body.model);
-			} else {
-				return new Response(JSON.stringify({ error: 'Unsupported model' }), {
-					status: 400,
-					headers: {
-						'Content-Type': 'application/json',
-						'Access-Control-Allow-Origin': '*',
-						'Access-Control-Allow-Methods': 'POST, OPTIONS',
-						'Access-Control-Allow-Headers': 'Content-Type',
-					},
-				});
-			}
-
-			// Create web search tool
-			const webSearchTool = tool({
-				description: 'Search the web for current information, news, and answers to questions',
-				inputSchema: z.object({
-					query: z.string().describe('The search query to execute'),
-					num: z.number().optional().default(10).describe('Number of search results to return (default: 10)'),
-				}),
-				execute: async ({ query, num = 10 }) => {
-					if (!serperKey) {
-						throw new Error('SERPER_API_KEY not configured');
-					}
-
-					const response = await fetch('https://google.serper.dev/search', {
-						method: 'POST',
-						headers: {
-							'X-API-KEY': serperKey,
-							'Content-Type': 'application/json',
-						},
-						body: JSON.stringify({ q: query, num }),
-					});
-
-					if (!response.ok) {
-						throw new Error(`Search API error: ${response.status}`);
-					}
-
-					const data = await response.json() as any;
-
-					return {
-						searchTerm: query,
-						results: data.organic?.map((result: any, index: number) => ({
-							position: index + 1,
-							title: result.title,
-							link: result.link,
-							snippet: result.snippet,
-						})) || [],
-						answerBox: data.answerBox || null,
-						peopleAlsoAsk: data.peopleAlsoAsk?.slice(0, 3) || [],
-						relatedSearches: data.relatedSearches?.slice(0, 5) || [],
-					};
-				},
-			});
-
-			// Create visit webpage tool
-			const visitWebpageTool = tool({
-				description: 'Visit a webpage and retrieve its content, including text, headings, links, and metadata',
-				inputSchema: z.object({
-					url: z.string().url().describe('The URL of the webpage to visit'),
-					maxLength: z.number().optional().default(10000).describe('Maximum content length to extract (default: 10000 characters)'),
-				}),
-				execute: async ({ url, maxLength = 10000 }) => {
-					const response = await fetch(url, {
-						headers: {
-							'User-Agent': 'Mozilla/5.0 (compatible; WebpageVisitor/1.0)',
-							'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-						},
-					});
-
-					if (!response.ok) {
-						throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-					}
-
-					const html = await response.text();
-					const $ = cheerio.load(html);
-
-					const title = $('title').text().trim() || $('h1').first().text().trim() || 'No title found';
-					const description = $('meta[name="description"]').attr('content') || undefined;
-
-					// Extract headings
-					const headings = {
-						h1: $('h1').map((_, el) => $(el).text().trim()).get(),
-						h2: $('h2').map((_, el) => $(el).text().trim()).get(),
-						h3: $('h3').map((_, el) => $(el).text().trim()).get(),
-					};
-
-					// Extract main content
-					$('script, style, nav, header, footer, aside').remove();
-					let contentElement = $('main, article, .content, #content').first();
-					if (contentElement.length === 0) {
-						contentElement = $('body');
-					}
-
-					const rawContent = contentElement.text()
-						.replace(/\s+/g, ' ')
-						.trim();
-
-					const content = rawContent.length > maxLength
-						? rawContent.substring(0, maxLength) + '...'
-						: rawContent;
-
-					return {
-						url,
-						title,
-						content,
-						description,
-						headings,
-						wordCount: content.split(/\s+/).length,
-					};
-				},
-			});
-
-			// Create agent
-			const agent = new Agent({
-				model: modelProvider,
-				system: 'You are a helpful AI assistant with access to web search and webpage content retrieval.',
-				tools: {
-					webSearch: webSearchTool,
-					visitWebpage: visitWebpageTool,
-				},
-				stopWhen: stepCountIs(10),
-			});
-
-			// Stream response
-			const { readable, writable } = new TransformStream();
-			const writer = writable.getWriter();
-			const encoder = new TextEncoder();
-
-			// Start streaming in background
-			(async () => {
-				try {
-					const stream = agent.stream({ messages: body.messages });
-
-					for await (const chunk of stream.textStream) {
-						await writer.write(encoder.encode(chunk));
-					}
-				} catch (error) {
-					console.error('Stream error:', error);
-				} finally {
-					await writer.close();
-				}
-			})();
-
-			return new Response(readable, {
-				headers: {
-					'Content-Type': 'text/plain; charset=utf-8',
-					'Transfer-Encoding': 'chunked',
-					'Cache-Control': 'no-cache',
-					'Access-Control-Allow-Origin': '*',
-					'Access-Control-Allow-Methods': 'POST, OPTIONS',
-					'Access-Control-Allow-Headers': 'Content-Type',
-				},
-			});
-
-		} catch (error) {
-			console.error('Chat error:', error);
-			return new Response(JSON.stringify({
-				error: error instanceof Error ? error.message : 'Unknown error'
-			}), {
-				status: 500,
-				headers: {
-					'Content-Type': 'application/json',
-					'Access-Control-Allow-Origin': '*',
-					'Access-Control-Allow-Methods': 'POST, OPTIONS',
-					'Access-Control-Allow-Headers': 'Content-Type',
-				},
-			});
-		}
+		return new Response("Expected WebSocket connection", { status: 400 });
 	}
 
 	/**
@@ -315,7 +67,7 @@ export class SpaceDurableObject extends DurableObject<Env> {
 			)
 		`);
 
-		// Create chats table
+		// Create chats table (without position initially for backwards compatibility)
 		this.ctx.storage.sql.exec(`
 			CREATE TABLE IF NOT EXISTS chats (
 				id TEXT PRIMARY KEY,
@@ -355,6 +107,44 @@ export class SpaceDurableObject extends DurableObject<Env> {
 		this.ctx.storage.sql.exec(`
 			CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)
 		`);
+	}
+
+	/**
+	 * Database migrations - run after initialization
+	 */
+	private migrateDatabase(): void {
+		// Migration: Add position column to chats table if it doesn't exist
+		try {
+			// Check if position column exists
+			const cursor = this.ctx.storage.sql.exec(`PRAGMA table_info(chats)`);
+			const columns = [...cursor];
+			const hasPosition = columns.some((col: any) => col.name === 'position');
+
+			if (!hasPosition) {
+				console.log('Running migration: Adding position column to chats table');
+
+				// Add position column with default value 0
+				this.ctx.storage.sql.exec(`ALTER TABLE chats ADD COLUMN position REAL NOT NULL DEFAULT 0`);
+
+				// Set position based on created_at order for existing chats
+				this.ctx.storage.sql.exec(`
+					UPDATE chats SET position = (
+						SELECT COUNT(*) FROM chats c2
+						WHERE c2.space_id = chats.space_id
+						AND c2.created_at < chats.created_at
+					)
+				`);
+
+				// Create index on position
+				this.ctx.storage.sql.exec(`
+					CREATE INDEX IF NOT EXISTS idx_chats_position ON chats(space_id, position)
+				`);
+
+				console.log('Migration completed: position column added');
+			}
+		} catch (error) {
+			console.error('Migration failed:', error);
+		}
 	}
 
 	/**
@@ -415,19 +205,40 @@ export class SpaceDurableObject extends DurableObject<Env> {
 
 	/**
 	 * Create a new chat in this space
+	 * Position parameter allows inserting at specific position (for branching)
 	 */
-	async createChat(name?: string, metadata?: Record<string, any>): Promise<Chat> {
+	async createChat(name?: string, metadata?: Record<string, any>, position?: number): Promise<Chat> {
 		const chatId = crypto.randomUUID();
 		const now = Date.now();
 		const chatName = name || `Chat ${chatId.slice(0, 8)}`;
 
+		// If no position specified, append to end (get max position + 1)
+		let chatPosition = position;
+		if (chatPosition === undefined) {
+			const cursor = this.ctx.storage.sql.exec(
+				`SELECT COALESCE(MAX(position), -1) as max_pos FROM chats WHERE space_id = ?`,
+				this.spaceId
+			);
+			const rows = [...cursor];
+			const maxPos = rows.length > 0 ? (rows[0].max_pos as number) : -1;
+			chatPosition = maxPos + 1;
+		} else {
+			// Shift positions of chats at or after this position
+			this.ctx.storage.sql.exec(
+				`UPDATE chats SET position = position + 1 WHERE space_id = ? AND position >= ?`,
+				this.spaceId,
+				chatPosition
+			);
+		}
+
 		this.ctx.storage.sql.exec(
-			`INSERT INTO chats (id, space_id, name, created_at, updated_at, metadata) VALUES (?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO chats (id, space_id, name, created_at, updated_at, position, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			chatId,
 			this.spaceId,
 			chatName,
 			now,
 			now,
+			chatPosition,
 			metadata ? JSON.stringify(metadata) : null
 		);
 
@@ -444,6 +255,7 @@ export class SpaceDurableObject extends DurableObject<Env> {
 			name: chatName,
 			createdAt: now,
 			updatedAt: now,
+			position: chatPosition,
 			metadata,
 		};
 	}
@@ -453,8 +265,8 @@ export class SpaceDurableObject extends DurableObject<Env> {
 	 */
 	async getChats(limit?: number, offset?: number): Promise<Chat[]> {
 		const query = limit !== undefined
-			? `SELECT * FROM chats WHERE space_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?`
-			: `SELECT * FROM chats WHERE space_id = ? ORDER BY updated_at DESC`;
+			? `SELECT * FROM chats WHERE space_id = ? ORDER BY position ASC LIMIT ? OFFSET ?`
+			: `SELECT * FROM chats WHERE space_id = ? ORDER BY position ASC`;
 
 		const params = limit !== undefined
 			? [this.spaceId, limit, offset || 0]
@@ -470,6 +282,7 @@ export class SpaceDurableObject extends DurableObject<Env> {
 				name: row.name as string,
 				createdAt: row.created_at as number,
 				updatedAt: row.updated_at as number,
+				position: row.position as number,
 				metadata: row.metadata ? JSON.parse(row.metadata as string) : undefined,
 			});
 		}
@@ -497,6 +310,7 @@ export class SpaceDurableObject extends DurableObject<Env> {
 			name: row.name as string,
 			createdAt: row.created_at as number,
 			updatedAt: row.updated_at as number,
+			position: row.position as number,
 			metadata: row.metadata ? JSON.parse(row.metadata as string) : undefined,
 		};
 	}
@@ -509,6 +323,53 @@ export class SpaceDurableObject extends DurableObject<Env> {
 			`UPDATE chats SET metadata = ?, updated_at = ? WHERE id = ? AND space_id = ?`,
 			JSON.stringify(metadata),
 			Date.now(),
+			chatId,
+			this.spaceId
+		);
+
+		return result.rowsWritten > 0;
+	}
+
+	/**
+	 * Update chat position (for reordering)
+	 */
+	async updateChatPosition(chatId: string, newPosition: number): Promise<boolean> {
+		// Get current position
+		const chatCursor = this.ctx.storage.sql.exec(
+			`SELECT position FROM chats WHERE id = ? AND space_id = ?`,
+			chatId,
+			this.spaceId
+		);
+		const chatRows = [...chatCursor];
+		if (chatRows.length === 0) return false;
+
+		const oldPosition = chatRows[0].position as number;
+
+		if (oldPosition === newPosition) return true;
+
+		// Shift positions
+		if (newPosition < oldPosition) {
+			// Moving left: shift items right between new and old position
+			this.ctx.storage.sql.exec(
+				`UPDATE chats SET position = position + 1 WHERE space_id = ? AND position >= ? AND position < ?`,
+				this.spaceId,
+				newPosition,
+				oldPosition
+			);
+		} else {
+			// Moving right: shift items left between old and new position
+			this.ctx.storage.sql.exec(
+				`UPDATE chats SET position = position - 1 WHERE space_id = ? AND position > ? AND position <= ?`,
+				this.spaceId,
+				oldPosition,
+				newPosition
+			);
+		}
+
+		// Update the chat's position
+		const result = this.ctx.storage.sql.exec(
+			`UPDATE chats SET position = ? WHERE id = ? AND space_id = ?`,
+			newPosition,
 			chatId,
 			this.spaceId
 		);
@@ -704,6 +565,12 @@ export class SpaceDurableObject extends DurableObject<Env> {
 			const data = typeof message === "string" ? message : new TextDecoder().decode(message);
 			const request: WebSocketMessage = JSON.parse(data);
 
+			// Special handling for streaming chat method
+			if (request.method === "streamChat") {
+				await this.handleStreamChat(ws, request);
+				return;
+			}
+
 			let response: WebSocketResponse;
 
 			try {
@@ -730,10 +597,222 @@ export class SpaceDurableObject extends DurableObject<Env> {
 	}
 
 	/**
+	 * Handle streaming chat over WebSocket
+	 */
+	private async handleStreamChat(ws: WebSocket, request: WebSocketMessage) {
+		try {
+			const { messages, model } = request.params;
+
+			if (!messages || !Array.isArray(messages) || messages.length === 0) {
+				ws.send(JSON.stringify({
+					id: request.id,
+					error: 'Messages array is required',
+				}));
+				return;
+			}
+
+			if (!model) {
+				ws.send(JSON.stringify({
+					id: request.id,
+					error: 'Model is required',
+				}));
+				return;
+			}
+
+			// Get API keys from environment
+			const anthropicKey = this.env.ANTHROPIC_API_KEY;
+			const openaiKey = this.env.OPENAI_API_KEY;
+			const serperKey = this.env.SERPER_API_KEY;
+
+			if (!anthropicKey && model.startsWith('claude-')) {
+				ws.send(JSON.stringify({
+					id: request.id,
+					error: 'ANTHROPIC_API_KEY not configured',
+				}));
+				return;
+			}
+
+			if (!openaiKey && (model.startsWith('gpt-') || model.startsWith('o1-') || model.startsWith('o3-'))) {
+				ws.send(JSON.stringify({
+					id: request.id,
+					error: 'OPENAI_API_KEY not configured',
+				}));
+				return;
+			}
+
+			// Initialize AI providers
+			const anthropic = createAnthropic({ apiKey: anthropicKey });
+			const openai = createOpenAI({ apiKey: openaiKey });
+
+			// Determine model provider
+			let modelProvider;
+			if (model.startsWith('claude-')) {
+				modelProvider = anthropic(model);
+			} else if (model.startsWith('gpt-') || model.startsWith('o1-') || model.startsWith('o3-')) {
+				modelProvider = openai(model);
+			} else {
+				ws.send(JSON.stringify({
+					id: request.id,
+					error: 'Unsupported model',
+				}));
+				return;
+			}
+
+			// Create web search tool
+			const webSearchTool = tool({
+				description: 'Search the web for current information, news, and answers to questions',
+				inputSchema: z.object({
+					query: z.string().describe('The search query to execute'),
+					num: z.number().optional().default(10).describe('Number of search results to return (default: 10)'),
+				}),
+				execute: async ({ query, num = 10 }) => {
+					if (!serperKey) {
+						throw new Error('SERPER_API_KEY not configured');
+					}
+
+					const response = await fetch('https://google.serper.dev/search', {
+						method: 'POST',
+						headers: {
+							'X-API-KEY': serperKey,
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({ q: query, num }),
+					});
+
+					if (!response.ok) {
+						throw new Error(`Search API error: ${response.status}`);
+					}
+
+					const data = await response.json() as any;
+
+					return {
+						searchTerm: query,
+						results: data.organic?.map((result: any, index: number) => ({
+							position: index + 1,
+							title: result.title,
+							link: result.link,
+							snippet: result.snippet,
+						})) || [],
+						answerBox: data.answerBox || null,
+						peopleAlsoAsk: data.peopleAlsoAsk?.slice(0, 3) || [],
+						relatedSearches: data.relatedSearches?.slice(0, 5) || [],
+					};
+				},
+			});
+
+			// Create visit webpage tool
+			const visitWebpageTool = tool({
+				description: 'Visit a webpage and retrieve its content, including text, headings, links, and metadata',
+				inputSchema: z.object({
+					url: z.string().url().describe('The URL of the webpage to visit'),
+					maxLength: z.number().optional().default(10000).describe('Maximum content length to extract (default: 10000 characters)'),
+				}),
+				execute: async ({ url, maxLength = 10000 }) => {
+					const response = await fetch(url, {
+						headers: {
+							'User-Agent': 'Mozilla/5.0 (compatible; WebpageVisitor/1.0)',
+							'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+						},
+					});
+
+					if (!response.ok) {
+						throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+					}
+
+					const html = await response.text();
+					const $ = cheerio.load(html);
+
+					const title = $('title').text().trim() || $('h1').first().text().trim() || 'No title found';
+					const description = $('meta[name="description"]').attr('content') || undefined;
+
+					// Extract headings
+					const headings = {
+						h1: $('h1').map((_, el) => $(el).text().trim()).get(),
+						h2: $('h2').map((_, el) => $(el).text().trim()).get(),
+						h3: $('h3').map((_, el) => $(el).text().trim()).get(),
+					};
+
+					// Extract main content
+					$('script, style, nav, header, footer, aside').remove();
+					let contentElement = $('main, article, .content, #content').first();
+					if (contentElement.length === 0) {
+						contentElement = $('body');
+					}
+
+					const rawContent = contentElement.text()
+						.replace(/\s+/g, ' ')
+						.trim();
+
+					const content = rawContent.length > maxLength
+						? rawContent.substring(0, maxLength) + '...'
+						: rawContent;
+
+					return {
+						url,
+						title,
+						content,
+						description,
+						headings,
+						wordCount: content.split(/\s+/).length,
+					};
+				},
+			});
+
+			// Create agent
+			const agent = new Agent({
+				model: modelProvider,
+				system: 'You are a helpful AI assistant with access to web search and webpage content retrieval.',
+				tools: {
+					webSearch: webSearchTool,
+					visitWebpage: visitWebpageTool,
+				},
+				stopWhen: stepCountIs(10),
+			});
+
+			// Send start message
+			ws.send(JSON.stringify({
+				id: request.id,
+				type: 'start',
+			}));
+
+			// Stream response
+			try {
+				const stream = agent.stream({ messages });
+
+				for await (const chunk of stream.textStream) {
+					ws.send(JSON.stringify({
+						id: request.id,
+						type: 'chunk',
+						data: chunk,
+					}));
+				}
+
+				// Send completion message
+				ws.send(JSON.stringify({
+					id: request.id,
+					type: 'done',
+				}));
+			} catch (streamError) {
+				ws.send(JSON.stringify({
+					id: request.id,
+					error: streamError instanceof Error ? streamError.message : 'Stream error',
+				}));
+			}
+		} catch (error) {
+			ws.send(JSON.stringify({
+				id: request.id,
+				error: error instanceof Error ? error.message : 'Unknown error',
+			}));
+		}
+	}
+
+	/**
 	 * Handle WebSocket close
 	 */
 	async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
-		ws.close(code, "Space Durable Object closing WebSocket");
+		// Don't try to close with reserved codes (1005, 1006, 1015)
+		// Just let the connection close naturally
+		console.log(`WebSocket closed: code=${code}, reason=${reason}, wasClean=${wasClean}`);
 	}
 
 	/**
@@ -757,7 +836,7 @@ export class SpaceDurableObject extends DurableObject<Env> {
 
 			// Chat methods
 			case "createChat":
-				return await this.createChat(params?.name, params?.metadata);
+				return await this.createChat(params?.name, params?.metadata, params?.position);
 			case "getChats":
 				return await this.getChats(params?.limit, params?.offset);
 			case "getChat":
@@ -765,6 +844,10 @@ export class SpaceDurableObject extends DurableObject<Env> {
 			case "updateChatMetadata":
 				const updated = await this.updateChatMetadata(params.chatId, params.metadata);
 				if (!updated) throw new Error("Chat not found");
+				return { success: true };
+			case "updateChatPosition":
+				const positionUpdated = await this.updateChatPosition(params.chatId, params.position);
+				if (!positionUpdated) throw new Error("Chat not found");
 				return { success: true };
 			case "deleteChat":
 				const deleted = await this.deleteChat(params.chatId);
@@ -813,6 +896,126 @@ export class SpaceDurableObject extends DurableObject<Env> {
 	}
 }
 
+/** Space Registry Durable Object - tracks all spaces */
+export class SpaceRegistryDurableObject extends DurableObject<Env> {
+	constructor(ctx: DurableObjectState, env: Env) {
+		super(ctx, env);
+		this.initializeDatabase();
+	}
+
+	private initializeDatabase(): void {
+		this.ctx.storage.sql.exec(`
+			CREATE TABLE IF NOT EXISTS space_registry (
+				space_id TEXT PRIMARY KEY,
+				name TEXT NOT NULL,
+				created_at INTEGER NOT NULL
+			)
+		`);
+	}
+
+	async fetch(request: Request): Promise<Response> {
+		const upgradeHeader = request.headers.get("Upgrade");
+
+		if (upgradeHeader === "websocket") {
+			const webSocketPair = new WebSocketPair();
+			const [client, server] = Object.values(webSocketPair);
+
+			this.ctx.acceptWebSocket(server);
+
+			return new Response(null, {
+				status: 101,
+				webSocket: client,
+			});
+		}
+
+		return new Response("Expected WebSocket connection", { status: 400 });
+	}
+
+	async webSocketMessage(ws: WebSocket, message: ArrayBuffer | string) {
+		try {
+			const data = typeof message === "string" ? message : new TextDecoder().decode(message);
+			const request = JSON.parse(data);
+
+			let response;
+
+			try {
+				const result = await this.handleMethod(request.method, request.params);
+				response = { id: request.id, result };
+			} catch (error) {
+				response = {
+					id: request.id,
+					error: error instanceof Error ? error.message : "Unknown error",
+				};
+			}
+
+			ws.send(JSON.stringify(response));
+		} catch (error) {
+			ws.send(JSON.stringify({ error: "Invalid message format" }));
+		}
+	}
+
+	async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
+		console.log(`Registry WebSocket closed: code=${code}, reason=${reason}, wasClean=${wasClean}`);
+	}
+
+	async webSocketError(ws: WebSocket, error: unknown) {
+		console.error("Registry WebSocket error:", error);
+	}
+
+	private async handleMethod(method: string, params: any): Promise<any> {
+		switch (method) {
+			case "registerSpace":
+				return await this.registerSpace(params.spaceId, params.name);
+			case "getSpaces":
+				return await this.getSpaces();
+			case "unregisterSpace":
+				return await this.unregisterSpace(params.spaceId);
+			default:
+				throw new Error(`Unknown method: ${method}`);
+		}
+	}
+
+	async registerSpace(spaceId: string, name: string) {
+		const now = Date.now();
+
+		// Insert or replace space
+		this.ctx.storage.sql.exec(
+			`INSERT OR REPLACE INTO space_registry (space_id, name, created_at) VALUES (?, ?, ?)`,
+			spaceId,
+			name,
+			now
+		);
+
+		return { success: true };
+	}
+
+	async getSpaces() {
+		const cursor = this.ctx.storage.sql.exec(
+			`SELECT * FROM space_registry ORDER BY created_at DESC`
+		);
+
+		const spaces = [];
+		for (const row of cursor) {
+			spaces.push({
+				id: row.space_id as string,
+				name: row.name as string,
+				createdAt: row.created_at as number,
+			});
+		}
+
+		return spaces;
+	}
+
+	async unregisterSpace(spaceId: string) {
+		this.ctx.storage.sql.exec(
+			`DELETE FROM space_registry WHERE space_id = ?`,
+			spaceId
+		);
+
+		return { success: true };
+	}
+}
+
 /** Legacy Durable Object - kept for backwards compatibility */
 export class MyDurableObject extends DurableObject<Env> {
 	constructor(ctx: DurableObjectState, env: Env) {
@@ -849,6 +1052,13 @@ export default {
 		}
 
 		// ========== WebSocket Routes ==========
+
+		// WebSocket connection to space registry: ws://localhost:8787/registry/ws
+		if (upgradeHeader === "websocket" && path === "/registry/ws") {
+			const stub = env.SPACE_REGISTRY.get(env.SPACE_REGISTRY.idFromName("global-registry"));
+			return stub.fetch(request);
+		}
+
 		// WebSocket connection: ws://localhost:8787/spaces/:spaceId/ws
 		if (upgradeHeader === "websocket" && path.match(/^\/spaces\/[^/]+\/ws$/)) {
 			const spaceId = path.split("/")[2];
@@ -858,265 +1068,10 @@ export default {
 			return stub.fetch(request);
 		}
 
-		try {
-			// ========== AI Chat Route ==========
-			// POST /spaces/:spaceId/chat - AI chat endpoint
-			if (path.match(/^\/spaces\/[^/]+\/chat$/) && request.method === "POST") {
-				const spaceId = path.split("/")[2];
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-
-				// Forward the chat request to the Durable Object
-				return stub.fetch(new URL("/chat", request.url).toString(), {
-					method: "POST",
-					headers: request.headers,
-					body: request.body,
-				});
-			}
-
-			// ========== Space Routes ==========
-
-			// GET /spaces/:spaceId - Get space info
-			if (path.match(/^\/spaces\/[^/]+$/) && request.method === "GET") {
-				const spaceId = path.split("/")[2];
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				const space = await stub.getOrCreateSpace();
-
-				return new Response(JSON.stringify(space), {
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// PUT /spaces/:spaceId/metadata - Update space metadata
-			if (path.match(/^\/spaces\/[^/]+\/metadata$/) && request.method === "PUT") {
-				const spaceId = path.split("/")[2];
-				const body = await request.json() as Record<string, any>;
-
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				await stub.updateSpaceMetadata(body);
-
-				return new Response(JSON.stringify({ success: true }), {
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// ========== Chat Routes ==========
-
-			// POST /spaces/:spaceId/chats - Create a new chat
-			if (path.match(/^\/spaces\/[^/]+\/chats$/) && request.method === "POST") {
-				const spaceId = path.split("/")[2];
-				const body = await request.json() as { name?: string; metadata?: Record<string, any> };
-
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				const chat = await stub.createChat(body.name, body.metadata);
-
-				return new Response(JSON.stringify(chat), {
-					status: 201,
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// GET /spaces/:spaceId/chats - Get all chats in a space
-			if (path.match(/^\/spaces\/[^/]+\/chats$/) && request.method === "GET") {
-				const spaceId = path.split("/")[2];
-				const limit = url.searchParams.get("limit");
-				const offset = url.searchParams.get("offset");
-
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				const chats = await stub.getChats(
-					limit ? parseInt(limit) : undefined,
-					offset ? parseInt(offset) : undefined
-				);
-
-				return new Response(JSON.stringify(chats), {
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// GET /spaces/:spaceId/chats/count - Get chat count (must come before /:chatId route)
-			if (path.match(/^\/spaces\/[^/]+\/chats\/count$/) && request.method === "GET") {
-				const spaceId = path.split("/")[2];
-
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				const count = await stub.getChatCount();
-
-				return new Response(JSON.stringify({ count }), {
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// GET /spaces/:spaceId/chats/:chatId - Get a specific chat
-			if (path.match(/^\/spaces\/[^/]+\/chats\/[^/]+$/) && request.method === "GET") {
-				const [, , spaceId, , chatId] = path.split("/");
-
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				const chat = await stub.getChat(chatId);
-
-				if (!chat) {
-					return new Response(JSON.stringify({ error: "Chat not found" }), {
-						status: 404,
-						headers: { ...corsHeaders, "Content-Type": "application/json" },
-					});
-				}
-
-				return new Response(JSON.stringify(chat), {
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// PUT /spaces/:spaceId/chats/:chatId/metadata - Update chat metadata
-			if (path.match(/^\/spaces\/[^/]+\/chats\/[^/]+\/metadata$/) && request.method === "PUT") {
-				const [, , spaceId, , chatId] = path.split("/");
-				const body = await request.json() as Record<string, any>;
-
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				const updated = await stub.updateChatMetadata(chatId, body);
-
-				if (!updated) {
-					return new Response(JSON.stringify({ error: "Chat not found" }), {
-						status: 404,
-						headers: { ...corsHeaders, "Content-Type": "application/json" },
-					});
-				}
-
-				return new Response(JSON.stringify({ success: true }), {
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// DELETE /spaces/:spaceId/chats/:chatId - Delete a chat
-			if (path.match(/^\/spaces\/[^/]+\/chats\/[^/]+$/) && request.method === "DELETE") {
-				const [, , spaceId, , chatId] = path.split("/");
-
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				const deleted = await stub.deleteChat(chatId);
-
-				if (!deleted) {
-					return new Response(JSON.stringify({ error: "Chat not found" }), {
-						status: 404,
-						headers: { ...corsHeaders, "Content-Type": "application/json" },
-					});
-				}
-
-				return new Response(JSON.stringify({ success: true }), {
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// ========== Message Routes ==========
-
-			// POST /spaces/:spaceId/chats/:chatId/messages - Add a message to a chat
-			if (path.match(/^\/spaces\/[^/]+\/chats\/[^/]+\/messages$/) && request.method === "POST") {
-				const [, , spaceId, , chatId] = path.split("/");
-				const body = await request.json() as { content: string; role: "user" | "assistant" | "system"; metadata?: Record<string, any> };
-
-				if (!body.content || !body.role) {
-					return new Response(JSON.stringify({ error: "Missing required fields: content, role" }), {
-						status: 400,
-						headers: { ...corsHeaders, "Content-Type": "application/json" },
-					});
-				}
-
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				const message = await stub.addMessage(chatId, body.content, body.role, body.metadata);
-
-				return new Response(JSON.stringify(message), {
-					status: 201,
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// GET /spaces/:spaceId/chats/:chatId/messages - Get all messages in a chat
-			if (path.match(/^\/spaces\/[^/]+\/chats\/[^/]+\/messages$/) && request.method === "GET") {
-				const [, , spaceId, , chatId] = path.split("/");
-				const limit = url.searchParams.get("limit");
-				const offset = url.searchParams.get("offset");
-
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				const messages = await stub.getMessages(
-					chatId,
-					limit ? parseInt(limit) : undefined,
-					offset ? parseInt(offset) : undefined
-				);
-
-				return new Response(JSON.stringify(messages), {
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// GET /spaces/:spaceId/messages/:messageId - Get a specific message
-			if (path.match(/^\/spaces\/[^/]+\/messages\/[^/]+$/) && request.method === "GET") {
-				const [, , spaceId, , messageId] = path.split("/");
-
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				const message = await stub.getMessage(messageId);
-
-				if (!message) {
-					return new Response(JSON.stringify({ error: "Message not found" }), {
-						status: 404,
-						headers: { ...corsHeaders, "Content-Type": "application/json" },
-					});
-				}
-
-				return new Response(JSON.stringify(message), {
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// DELETE /spaces/:spaceId/messages/:messageId - Delete a specific message
-			if (path.match(/^\/spaces\/[^/]+\/messages\/[^/]+$/) && request.method === "DELETE") {
-				const [, , spaceId, , messageId] = path.split("/");
-
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				const deleted = await stub.deleteMessage(messageId);
-
-				if (!deleted) {
-					return new Response(JSON.stringify({ error: "Message not found" }), {
-						status: 404,
-						headers: { ...corsHeaders, "Content-Type": "application/json" },
-					});
-				}
-
-				return new Response(JSON.stringify({ success: true }), {
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// DELETE /spaces/:spaceId/chats/:chatId/messages - Clear all messages in a chat
-			if (path.match(/^\/spaces\/[^/]+\/chats\/[^/]+\/messages$/) && request.method === "DELETE") {
-				const [, , spaceId, , chatId] = path.split("/");
-
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				const count = await stub.clearMessages(chatId);
-
-				return new Response(JSON.stringify({ deletedCount: count }), {
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// GET /spaces/:spaceId/chats/:chatId/count - Get message count for a chat
-			if (path.match(/^\/spaces\/[^/]+\/chats\/[^/]+\/count$/) && request.method === "GET") {
-				const [, , spaceId, , chatId] = path.split("/");
-
-				const stub = env.SPACE.get(env.SPACE.idFromName(spaceId));
-				const count = await stub.getMessageCount(chatId);
-
-				return new Response(JSON.stringify({ count }), {
-					headers: { ...corsHeaders, "Content-Type": "application/json" },
-				});
-			}
-
-			// 404 - Route not found
-			return new Response(JSON.stringify({ error: "Not found" }), {
-				status: 404,
-				headers: { ...corsHeaders, "Content-Type": "application/json" },
-			});
-		} catch (error) {
-			console.error("Error handling request:", error);
-			const errorMessage = error instanceof Error ? error.message : "Unknown error";
-			return new Response(JSON.stringify({ error: "Internal server error", message: errorMessage }), {
-				status: 500,
-				headers: { ...corsHeaders, "Content-Type": "application/json" },
-			});
-		}
+		// All other requests return 404
+		return new Response(JSON.stringify({ error: "Not found. Use WebSocket connection at /spaces/:spaceId/ws or /registry/ws" }), {
+			status: 404,
+			headers: { ...corsHeaders, "Content-Type": "application/json" },
+		});
 	},
 } satisfies ExportedHandler<Env>;

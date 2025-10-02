@@ -8,6 +8,7 @@ interface ChatEmptyStateProps {
   selectedModel: string | null;
   input: string;
   isLoading: boolean;
+  spaceId: string;
 }
 
 export function ChatEmptyState({
@@ -15,6 +16,7 @@ export function ChatEmptyState({
   selectedModel,
   input,
   isLoading,
+  spaceId,
 }: ChatEmptyStateProps) {
   const [shouldClearEditor, setShouldClearEditor] = useState(false);
 
@@ -50,7 +52,7 @@ export function ChatEmptyState({
     }));
 
     try {
-      await sendMessage(messageHistory, selectedModel, (chunk: string) => {
+      await sendMessage(spaceId, chatId, messageHistory, selectedModel, (chunk: string) => {
         actions.appendToMessage(chatId, assistantMessage.id, chunk);
       });
     } catch (error) {

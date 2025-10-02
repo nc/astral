@@ -20,6 +20,7 @@ export interface Chat {
 	name: string;
 	createdAt: number;
 	updatedAt: number;
+	position: number;
 	metadata?: Record<string, any>;
 }
 
