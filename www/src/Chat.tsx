@@ -853,7 +853,7 @@ export function Chat({ chat }: ChatProps) {
             <div style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
               <div
                 style={{
-                  maxWidth: 720,
+                  maxWidth: 744,
                   width: "100%",
                   display: "table",
                   margin: "0 auto",
