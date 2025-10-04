@@ -145,6 +145,24 @@ export class SpaceDurableObject extends DurableObject<Env> {
 		} catch (error) {
 			console.error('Migration failed:', error);
 		}
+
+		// Migration: Add model column to chats table if it doesn't exist
+		try {
+			const cursor = this.ctx.storage.sql.exec(`PRAGMA table_info(chats)`);
+			const columns = [...cursor];
+			const hasModel = columns.some((col: any) => col.name === 'model');
+
+			if (!hasModel) {
+				console.log('Running migration: Adding model column to chats table');
+
+				// Add model column
+				this.ctx.storage.sql.exec(`ALTER TABLE chats ADD COLUMN model TEXT`);
+
+				console.log('Migration completed: model column added');
+			}
+		} catch (error) {
+			console.error('Migration failed:', error);
+		}
 	}
 
 	/**
@@ -193,12 +211,25 @@ export class SpaceDurableObject extends DurableObject<Env> {
 	 * Update space metadata
 	 */
 	async updateSpaceMetadata(metadata: Record<string, any>): Promise<void> {
-		this.ctx.storage.sql.exec(
-			`UPDATE spaces SET metadata = ?, updated_at = ? WHERE id = ?`,
-			JSON.stringify(metadata),
-			Date.now(),
-			this.spaceId
-		);
+		const now = Date.now();
+
+		// If metadata contains a name, update the name field as well
+		if (metadata.name !== undefined) {
+			this.ctx.storage.sql.exec(
+				`UPDATE spaces SET name = ?, metadata = ?, updated_at = ? WHERE id = ?`,
+				metadata.name,
+				JSON.stringify(metadata),
+				now,
+				this.spaceId
+			);
+		} else {
+			this.ctx.storage.sql.exec(
+				`UPDATE spaces SET metadata = ?, updated_at = ? WHERE id = ?`,
+				JSON.stringify(metadata),
+				now,
+				this.spaceId
+			);
+		}
 	}
 
 	// ============== Chat Methods ==============
@@ -207,7 +238,7 @@ export class SpaceDurableObject extends DurableObject<Env> {
 	 * Create a new chat in this space
 	 * Position parameter allows inserting at specific position (for branching)
 	 */
-	async createChat(name?: string, metadata?: Record<string, any>, position?: number): Promise<Chat> {
+	async createChat(name?: string, metadata?: Record<string, any>, position?: number, model?: string): Promise<Chat> {
 		const chatId = crypto.randomUUID();
 		const now = Date.now();
 		const chatName = name || `Chat ${chatId.slice(0, 8)}`;
@@ -232,14 +263,15 @@ export class SpaceDurableObject extends DurableObject<Env> {
 		}
 
 		this.ctx.storage.sql.exec(
-			`INSERT INTO chats (id, space_id, name, created_at, updated_at, position, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO chats (id, space_id, name, created_at, updated_at, position, metadata, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			chatId,
 			this.spaceId,
 			chatName,
 			now,
 			now,
 			chatPosition,
-			metadata ? JSON.stringify(metadata) : null
+			metadata ? JSON.stringify(metadata) : null,
+			model || null
 		);
 
 		// Update space's updated_at timestamp
@@ -257,6 +289,7 @@ export class SpaceDurableObject extends DurableObject<Env> {
 			updatedAt: now,
 			position: chatPosition,
 			metadata,
+			model,
 		};
 	}
 
@@ -284,6 +317,7 @@ export class SpaceDurableObject extends DurableObject<Env> {
 				updatedAt: row.updated_at as number,
 				position: row.position as number,
 				metadata: row.metadata ? JSON.parse(row.metadata as string) : undefined,
+				model: row.model as string | undefined,
 			});
 		}
 
@@ -312,6 +346,7 @@ export class SpaceDurableObject extends DurableObject<Env> {
 			updatedAt: row.updated_at as number,
 			position: row.position as number,
 			metadata: row.metadata ? JSON.parse(row.metadata as string) : undefined,
+			model: row.model as string | undefined,
 		};
 	}
 
@@ -778,13 +813,34 @@ export class SpaceDurableObject extends DurableObject<Env> {
 			// Stream response
 			try {
 				const stream = agent.stream({ messages });
+				let lastChunkTime = Date.now();
+				let keepAliveInterval: NodeJS.Timeout | null = null;
 
-				for await (const chunk of stream.textStream) {
-					ws.send(JSON.stringify({
-						id: request.id,
-						type: 'chunk',
-						data: chunk,
-					}));
+				// Set up keep-alive to prevent WebSocket timeout during slow streaming
+				keepAliveInterval = setInterval(() => {
+					// Only send keep-alive if we haven't received a chunk in the last 5 seconds
+					if (Date.now() - lastChunkTime > 5000) {
+						ws.send(JSON.stringify({
+							id: request.id,
+							type: 'keepalive',
+						}));
+					}
+				}, 5000); // Check every 5 seconds
+
+				try {
+					for await (const chunk of stream.textStream) {
+						lastChunkTime = Date.now();
+						ws.send(JSON.stringify({
+							id: request.id,
+							type: 'chunk',
+							data: chunk,
+						}));
+					}
+				} finally {
+					// Clear keep-alive interval
+					if (keepAliveInterval) {
+						clearInterval(keepAliveInterval);
+					}
 				}
 
 				// Send completion message
@@ -836,7 +892,7 @@ export class SpaceDurableObject extends DurableObject<Env> {
 
 			// Chat methods
 			case "createChat":
-				return await this.createChat(params?.name, params?.metadata, params?.position);
+				return await this.createChat(params?.name, params?.metadata, params?.position, params?.model);
 			case "getChats":
 				return await this.getChats(params?.limit, params?.offset);
 			case "getChat":
@@ -1238,6 +1294,8 @@ export class SpaceRegistryDurableObject extends DurableObject<Env> {
 				return await this.registerSpace(params.spaceId, params.name, params.userId);
 			case "getSpaces":
 				return await this.getSpaces(params.userId);
+			case "updateSpaceName":
+				return await this.updateSpaceName(params.spaceId, params.name);
 			case "unregisterSpace":
 				return await this.unregisterSpace(params.spaceId);
 			default:
@@ -1286,6 +1344,16 @@ export class SpaceRegistryDurableObject extends DurableObject<Env> {
 		}
 
 		return spaces;
+	}
+
+	async updateSpaceName(spaceId: string, name: string) {
+		this.ctx.storage.sql.exec(
+			`UPDATE space_registry SET name = ? WHERE space_id = ?`,
+			name,
+			spaceId
+		);
+
+		return { success: true };
 	}
 
 	async unregisterSpace(spaceId: string) {

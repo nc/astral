@@ -3,6 +3,8 @@ import { useSnapshot } from "valtio";
 import { store, actions } from "../store";
 import { ChatComposer } from "../ChatComposer";
 import { sendMessage } from "../api";
+import { getWebSocketClient } from "../websocket-client";
+import type { UserMessage, AssistantMessage } from "../store";
 
 interface EmptySpaceStateProps {
   spaceId: string;
@@ -41,7 +43,15 @@ export function EmptySpaceState({ spaceId }: EmptySpaceStateProps) {
     actions.clearEmptySpaceState();
     setShouldClear(true);
 
-    // Create a chat for each selected model and start generation
+    // First, create ALL chats before starting any message generation
+    // This prevents the component from unmounting mid-loop
+    const chatsToGenerate: Array<{
+      chatId: string;
+      model: string;
+      userMessage: UserMessage;
+      assistantMessage: AssistantMessage;
+    }> = [];
+
     for (let i = 0; i < selectedModels.length; i++) {
       const model = selectedModels[i];
 
@@ -51,16 +61,20 @@ export function EmptySpaceState({ spaceId }: EmptySpaceStateProps) {
           ? `New Chat (${model.split("-")[0]})` // e.g., "New Chat (claude)"
           : "New Chat";
 
-      const chat = await actions.createChat(spaceId, chatTitle);
-      actions.setModel(chat.id, model);
+      const chat = await actions.createChat(
+        spaceId,
+        chatTitle,
+        undefined,
+        model
+      );
 
       // Add the user message
-      const userMessage = actions.createMessage("user", userMessageText);
+      const userMessage = actions.createUserMessage(userMessageText);
       actions.addMessage(chat.id, userMessage);
 
       // Set loading state and create assistant message
       actions.setLoading(chat.id, true);
-      const assistantMessage = actions.createMessage("assistant", "");
+      const assistantMessage = actions.createAssistantMessage("");
       actions.addMessage(chat.id, assistantMessage);
       actions.setStreamingMessageId(chat.id, assistantMessage.id);
 
@@ -69,35 +83,91 @@ export function EmptySpaceState({ spaceId }: EmptySpaceStateProps) {
         actions.setActiveChat(chat.id);
       }
 
-      // Build the message history for the API call
-      const messageHistory = [userMessage].map((msg) => ({
+      // Store chat info for message generation
+      chatsToGenerate.push({
+        chatId: chat.id,
+        model,
+        userMessage,
+        assistantMessage,
+      });
+    }
+
+    // Generate a space title from the first message using Claude Sonnet 4.5
+    (async () => {
+      try {
+        const titleClient = await getWebSocketClient(spaceId);
+        let generatedTitle = "";
+
+        await titleClient.streamChat(
+          [
+            {
+              role: "user",
+              content: `Generate a 1-3 word title for this message. Only respond with the title, nothing else: "${userMessageText}"`,
+            },
+          ],
+          "claude-sonnet-4-5-20250929",
+          (chunk: string) => {
+            generatedTitle += chunk;
+          }
+        );
+
+        // Clean up the title (remove quotes, trim, take first 3 words max)
+        const cleanTitle = generatedTitle
+          .replace(/^["']|["']$/g, "")
+          .trim()
+          .split(/\s+/)
+          .slice(0, 3)
+          .join(" ");
+
+        if (cleanTitle) {
+          await actions.renameSpace(spaceId, cleanTitle);
+        }
+      } catch (error) {
+        console.error("Failed to generate space title:", error);
+        // Silently fail - not critical
+      }
+    })();
+
+    // Now start generation for all chats in parallel
+    for (const chatInfo of chatsToGenerate) {
+      const messageHistory = [chatInfo.userMessage].map((msg) => ({
         role: msg.role,
         content: msg.content,
       }));
 
-      console.log(`Sending message to ${model}:`, messageHistory);
+      console.log(`Sending message to ${chatInfo.model}:`, messageHistory);
 
       // Start generation for this chat (don't await - let them run in parallel)
-      sendMessage(spaceId, chat.id, messageHistory, model, (chunk: string) => {
-        actions.appendToMessage(chat.id, assistantMessage.id, chunk);
-      })
+      sendMessage(
+        spaceId,
+        chatInfo.chatId,
+        messageHistory,
+        chatInfo.model,
+        (chunk: string) => {
+          actions.appendToMessage(
+            chatInfo.chatId,
+            chatInfo.assistantMessage.id,
+            chunk
+          );
+        }
+      )
         .catch((error) => {
           console.error(
-            `EmptySpaceState: Error sending message to ${model}:`,
+            `EmptySpaceState: Error sending message to ${chatInfo.model}:`,
             error
           );
           const errorMessage =
             error instanceof Error ? error.message : "Unknown error occurred";
 
           actions.updateMessageContent(
-            chat.id,
-            assistantMessage.id,
+            chatInfo.chatId,
+            chatInfo.assistantMessage.id,
             `❌ Error: ${errorMessage}`
           );
         })
         .finally(() => {
-          actions.setLoading(chat.id, false);
-          actions.setStreamingMessageId(chat.id, null);
+          actions.setLoading(chatInfo.chatId, false);
+          actions.setStreamingMessageId(chatInfo.chatId, null);
         });
     }
   };

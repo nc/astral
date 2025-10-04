@@ -146,11 +146,19 @@ export class WebSocketClient {
 
       const id = generateMessageId();
       let hasStarted = false;
+      let timeoutId: NodeJS.Timeout;
 
-      const timeoutId = setTimeout(() => {
-        this.messageHandlers.delete(id);
-        reject(new Error('Timeout waiting for chat stream'));
-      }, 60000);
+      // Function to reset the timeout on each activity
+      const resetTimeout = () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          this.messageHandlers.delete(id);
+          reject(new Error('Timeout waiting for chat stream'));
+        }, 60000); // 60 second timeout of inactivity
+      };
+
+      // Set initial timeout
+      resetTimeout();
 
       this.messageHandlers.set(id, (response) => {
         if (response.error) {
@@ -162,10 +170,15 @@ export class WebSocketClient {
 
         if (response.type === 'start') {
           hasStarted = true;
+          resetTimeout(); // Reset timeout when stream starts
         } else if (response.type === 'chunk') {
           if (response.data) {
             onChunk(response.data);
           }
+          resetTimeout(); // Reset timeout on each chunk
+        } else if (response.type === 'keepalive') {
+          // Keep-alive ping from server - reset timeout but don't call onChunk
+          resetTimeout();
         } else if (response.type === 'done') {
           clearTimeout(timeoutId);
           this.messageHandlers.delete(id);
@@ -193,8 +206,8 @@ export class WebSocketClient {
 
   // ========== Chat Methods ==========
 
-  async createChat(name?: string, metadata?: Record<string, any>, position?: number) {
-    return this.call('createChat', { name, metadata, position });
+  async createChat(name?: string, metadata?: Record<string, any>, position?: number, model?: string) {
+    return this.call('createChat', { name, metadata, position, model });
   }
 
   async getChats(limit?: number, offset?: number) {
@@ -373,6 +386,10 @@ export class RegistryWebSocketClient {
 
   async getSpaces(userId?: string) {
     return this.call('getSpaces', { userId });
+  }
+
+  async updateSpaceName(spaceId: string, name: string) {
+    return this.call('updateSpaceName', { spaceId, name });
   }
 
   async unregisterSpace(spaceId: string) {

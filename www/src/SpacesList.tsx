@@ -50,8 +50,8 @@ export function SpacesList({ user }: SpacesListProps) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('user');
-    window.location.href = '/';
+    localStorage.removeItem("user");
+    window.location.href = "/";
   };
 
   return (
@@ -290,6 +290,9 @@ export function SpacesList({ user }: SpacesListProps) {
                             lineHeight: "16px",
                             whiteSpace: "pre",
                             margin: 0,
+                            textOverflow: "ellipsis",
+                            overflow: "hidden",
+                            maxWidth: "calc(200px - 60px)",
                           }}
                         >
                           {space.name}

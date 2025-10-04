@@ -20,6 +20,7 @@ const BackendChatSchema = z.object({
   updatedAt: z.number().optional(),
   position: z.number(),
   metadata: z.record(z.any()).optional(),
+  model: z.string().optional(),
 })
 
 const BackendMessageSchema = z.object({
@@ -38,6 +39,20 @@ const BackendMessagesArraySchema = z.array(BackendMessageSchema)
 export interface Message {
   id: string
   role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+}
+
+export interface UserMessage {
+  id: string
+  role: 'user'
+  content: string
+  timestamp: number
+}
+
+export interface AssistantMessage {
+  id: string
+  role: 'assistant'
   content: string
   timestamp: number
 }
@@ -171,7 +186,7 @@ export const actions = {
                 input: '',
                 streamingMessageId: null,
                 createdAt: backendChat.createdAt,
-                model: store.defaultModel
+                model: backendChat.model || store.defaultModel
               };
               space.chatOrder.push(backendChat.id);
             }
@@ -204,7 +219,7 @@ export const actions = {
       createdAt: Date.now()
     }
     store.spaces[space.id] = space
-    store.spaceOrder.push(space.id)
+    store.spaceOrder.unshift(space.id) // Prepend to start (newest first)
     store.activeSpaceId = space.id
     store.activeChatId = null
 
@@ -276,7 +291,7 @@ export const actions = {
             input: '',
             streamingMessageId: null,
             createdAt: backendChat.createdAt,
-            model: store.defaultModel
+            model: backendChat.model || store.defaultModel
           };
         }
       }
@@ -339,17 +354,21 @@ export const actions = {
     // Update locally first
     space.name = trimmedName
 
-    // Sync with backend
+    // Sync with backend - update both the Space DO and the Registry
     try {
       const client = await getWebSocketClient(spaceId);
       await client.updateSpaceMetadata({ name: trimmedName });
+
+      // Also update in the Space Registry
+      const registry = await getRegistryClient();
+      await registry.updateSpaceName(spaceId, trimmedName);
     } catch (error) {
       console.error('Failed to sync space rename with backend:', error);
     }
   },
 
   // Chat actions
-  createChat: async (spaceId: string, title: string = 'New Chat', insertAtPosition?: number): Promise<Chat> => {
+  createChat: async (spaceId: string, title: string = 'New Chat', insertAtPosition?: number, model?: string): Promise<Chat> => {
     console.log('Creating chat in space:', spaceId, 'at position:', insertAtPosition)
     const space = store.spaces[spaceId]
     if (!space) throw new Error('Space not found')
@@ -357,10 +376,13 @@ export const actions = {
     // Determine position: if not specified, append to end
     const position = insertAtPosition !== undefined ? insertAtPosition : space.chatOrder.length;
 
+    // Use provided model or default
+    const chatModel = model || store.defaultModel;
+
     // Create chat in backend first to get the real ID
     try {
       const client = await getWebSocketClient(spaceId);
-      const rawChat = await client.createChat(title, { type: 'chat' }, position);
+      const rawChat = await client.createChat(title, { type: 'chat' }, position, chatModel);
 
       // Validate chat data
       const backendChat = BackendChatSchema.parse(rawChat);
@@ -373,7 +395,7 @@ export const actions = {
         input: '',
         streamingMessageId: null,
         createdAt: backendChat.createdAt,
-        model: store.defaultModel
+        model: backendChat.model || chatModel
       }
 
       space.chats[chat.id] = chat
@@ -558,6 +580,20 @@ export const actions = {
   createMessage: (role: 'user' | 'assistant', content: string): Message => ({
     id: uuidv4(),
     role,
+    content,
+    timestamp: Date.now()
+  }),
+
+  createUserMessage: (content: string): UserMessage => ({
+    id: uuidv4(),
+    role: 'user',
+    content,
+    timestamp: Date.now()
+  }),
+
+  createAssistantMessage: (content: string): AssistantMessage => ({
+    id: uuidv4(),
+    role: 'assistant',
     content,
     timestamp: Date.now()
   }),

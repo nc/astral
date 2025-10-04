@@ -22,6 +22,7 @@ export interface Chat {
 	updatedAt: number;
 	position: number;
 	metadata?: Record<string, any>;
+	model?: string;
 }
 
 export interface SpaceData {

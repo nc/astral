@@ -423,7 +423,6 @@ export function Chat({ chat }: ChatProps) {
         </div>
         <div
           style={{
-            maxWidth: "720px",
             width: "100%",
             display: "table",
             margin: "0 auto",
@@ -441,7 +440,7 @@ export function Chat({ chat }: ChatProps) {
             <ScrollArea.Root
               style={{
                 flex: 1,
-                maxHeight: `calc(100vh - ${
+                height: `calc(100vh - ${
                   snap.chatHeaderHeight + snap.chatComposerHeight + 16
                 }px)`, // 80px accounts for margins and padding
               }}
@@ -460,9 +459,12 @@ export function Chat({ chat }: ChatProps) {
                     key={message.id}
                     style={{
                       marginBottom: "10px",
+                      maxWidth: "720px",
+                      display: "table",
+                      width: "100%",
                       padding:
                         message.role === "user" ? "12px 12px" : "8px 8px",
-                      margin: message.role === "user" ? "0px 0px" : "0px",
+                      margin: message.role === "user" ? "0px auto" : "0px auto",
                       borderRadius: "9px",
                       color: "#FFFFFF",
                       backgroundColor:
@@ -484,7 +486,7 @@ export function Chat({ chat }: ChatProps) {
                             p: ({ children }) => (
                               <p
                                 style={{
-                                  margin: "0 0 12px 0",
+                                  margin: "0px 0px 0px 0px",
                                 }}
                               >
                                 {children}
@@ -590,7 +592,7 @@ export function Chat({ chat }: ChatProps) {
                             ul: ({ children }) => (
                               <ul
                                 style={{
-                                  margin: "8px 0px",
+                                  margin: "0px 0px 24px 0px",
                                   paddingLeft: "20px",
                                 }}
                               >
@@ -608,7 +610,9 @@ export function Chat({ chat }: ChatProps) {
                               </ol>
                             ),
                             li: ({ children }) => (
-                              <li style={{ margin: "4px 20px" }}>{children}</li>
+                              <li style={{ margin: "0px 0px 0px" }}>
+                                {children}
+                              </li>
                             ),
                             h1: ({ children }) => (
                               <h1
