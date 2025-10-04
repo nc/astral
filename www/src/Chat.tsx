@@ -159,15 +159,21 @@ export function Chat({ chat }: ChatProps) {
     // Get the space ID for this chat
     const spaceId = snap.activeSpaceId;
     if (!spaceId) {
-      console.error('No active space ID');
+      console.error("No active space ID");
       actions.setLoading(chat.id, false);
       return;
     }
 
     try {
-      await sendMessage(spaceId, chat.id, messageHistory, chat.model!, (chunk: string) => {
-        actions.appendToMessage(chat.id, assistantMessage.id, chunk);
-      });
+      await sendMessage(
+        spaceId,
+        chat.id,
+        messageHistory,
+        chat.model!,
+        (chunk: string) => {
+          actions.appendToMessage(chat.id, assistantMessage.id, chunk);
+        }
+      );
     } catch (error) {
       console.error("=== CHAT ERROR HANDLER ===");
       console.error("Error sending message:", error);
@@ -245,19 +251,17 @@ export function Chat({ chat }: ChatProps) {
         }
       }}
       onMouseEnter={(e) => {
-        if (!isActive) {
-          (e.currentTarget as HTMLElement).style.boxShadow =
-            "0 0 0 1px #5ba97d";
-        }
+        // if (!isActive) {
+        //   (e.currentTarget as HTMLElement).style.boxShadow =
+        //     "0 0 0 1px #5ba97d";
+        // }
       }}
       onMouseLeave={(e) => {
-        if (!isActive) {
-          (e.currentTarget as HTMLElement).style.boxShadow = "none";
-        }
+        // if (!isActive) {
+        //   (e.currentTarget as HTMLElement).style.boxShadow = "none";
+        // }
       }}
       style={{
-        minWidth: "560px",
-        width: "560px",
         position: "relative",
         top: 8,
         height: "calc(100vh - 16px)", // Subtract space header height (57px + border)
@@ -268,480 +272,519 @@ export function Chat({ chat }: ChatProps) {
         background: "var(--card-bg)",
         boxSizing: "border-box",
         flexShrink: 0,
-        boxShadow: isActive ? "0 0 0 2px #5ba97d" : "none",
+        // boxShadow: isActive ? "0 0 0 2px #5ba97d" : "none",
         transition: "box-shadow 0.2s ease",
         cursor: isActive ? "default" : "pointer",
       }}
     >
-      <style>
-        {`
+      <div
+        style={{
+          position: "relative",
+          height: "calc(100vh - 16px)",
+        }}
+      >
+        <style>
+          {`
           @keyframes blink {
             0%, 50% { opacity: 1; }
             51%, 100% { opacity: 0; }
           }
         `}
-      </style>
-      <div
-        ref={headerRef}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "12px",
-          alignItems: "flex-end",
-          width: "100%",
-        }}
-      >
-        {/* Header buttons - right aligned */}
+        </style>
         <div
+          ref={headerRef}
           style={{
             display: "flex",
-            gap: "4px",
+            flexDirection: "column",
+            gap: "12px",
+            alignItems: "flex-end",
             width: "100%",
-            justifyContent: "flex-end",
-            boxShadow: "inset 0 -1px 0 0 #2d302f",
-            padding: 8,
           }}
         >
-          {/* Model name */}
-          {chat.model && chat.messages.length > 0 && (
-            <div
-              style={{
-                border: "1px solid #2d302f",
-                borderRadius: "9px",
-                padding: "4px 12px",
-                fontSize: "14px",
-                color: "#8d9693",
-                fontFamily: "'Inter', sans-serif",
-                fontWeight: "600",
-                lineHeight: "14px",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {chat.model === "claude-sonnet-4-5-20250929"
-                ? "Claude Sonnet 4.5"
-                : chat.model === "claude-opus-4-1-20250805"
-                ? "Claude Opus 4.1"
-                : chat.model === "claude-3-5-sonnet-20241022"
-                ? "Claude Sonnet 4"
-                : chat.model === "claude-3-5-haiku-20241022"
-                ? "Claude 3.5 Haiku"
-                : chat.model === "claude-3-opus-20240229"
-                ? "Claude 3 Opus"
-                : chat.model === "gpt-5-2025-08-07"
-                ? "GPT-5"
-                : chat.model === "gpt-5-mini-2025-08-07"
-                ? "GPT-5 Mini"
-                : chat.model === "gpt-5-nano-2025-08-07"
-                ? "GPT-5 Nano"
-                : chat.model === "gpt-5-chat-latest"
-                ? "GPT-5 Chat"
-                : chat.model === "gpt-4o"
-                ? "GPT-4o"
-                : chat.model === "gpt-4o-mini"
-                ? "GPT-4o Mini"
-                : chat.model === "gpt-4-turbo"
-                ? "GPT-4 Turbo"
-                : chat.model === "gpt-3.5-turbo"
-                ? "GPT-3.5 Turbo"
-                : chat.model === "o1-preview"
-                ? "o1-preview"
-                : chat.model === "o1-mini"
-                ? "o1-mini"
-                : chat.model}
-            </div>
-          )}
-
-          {/* Branch button */}
-          <button
-            onClick={handleBranch}
+          {/* Header buttons - right aligned */}
+          <div
             style={{
-              backgroundColor: "#1e2020",
-              border: "none",
-              borderRadius: "9px",
-              padding: "4px 12px",
               display: "flex",
-              alignItems: "center",
               gap: "4px",
-              cursor: "pointer",
-              height: "24px",
+              width: "100%",
+              justifyContent: "flex-end",
+              boxShadow: "inset 0 -1px 0 0 #2d302f",
+              padding: 8,
             }}
           >
-            <Split
-              size={14}
-              color="#8d9693"
-              style={{ transform: "rotate(90deg)" }}
-            />
-            <span
-              style={{
-                color: "#8d9693",
-                fontSize: "14px",
-                fontFamily: "'Inter', sans-serif",
-                fontWeight: "600",
-                lineHeight: "14px",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Branch
-            </span>
-          </button>
-          {/* Chat menu dropdown */}
-          <Dropdown
-            trigger={
-              <button
+            {/* Model name */}
+            {chat.model && chat.messages.length > 0 && (
+              <div
                 style={{
-                  backgroundColor: "#1e2020",
-                  border: "none",
+                  border: "1px solid #2d302f",
                   borderRadius: "9px",
                   padding: "4px 12px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  height: "24px",
-                  width: "38px",
+                  fontSize: "14px",
+                  color: "#8d9693",
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: "600",
+                  lineHeight: "14px",
+                  whiteSpace: "nowrap",
                 }}
               >
-                <Ellipsis size={14} color="#8d9693" />
-              </button>
-            }
-            options={chatMenuOptions}
-            onValueChange={handleChatAction}
-            width={200}
-            maxHeight={120}
-          />
-        </div>
-      </div>
-
-      {chat.messages.length === 0 ? (
-        <ChatEmptyState
-          chatId={chat.id}
-          selectedModel={chat.model}
-          input={chat.input}
-          spaceId={snap.activeSpaceId!}
-          isLoading={chat.isLoading}
-        />
-      ) : (
-        <ScrollArea.Root
-          style={{
-            flex: 1,
-            maxHeight: `calc(100vh - ${
-              snap.chatHeaderHeight + snap.chatComposerHeight + 16
-            }px)`, // 80px accounts for margins and padding
-          }}
-        >
-          <ScrollArea.Viewport
-            ref={scrollAreaRef}
-            style={{
-              width: "100%",
-              height: "100%",
-              padding: "8px",
-              // paddingRight: "0px", // Add space for scrollbar,
-            }}
-          >
-            {chat.messages.map((message) => (
-              <div
-                key={message.id}
-                style={{
-                  marginBottom: "10px",
-                  padding: message.role === "user" ? "12px 12px" : "8px 8px",
-                  margin: message.role === "user" ? "0px 0px" : "0px",
-                  borderRadius: "8px",
-                  color: "#FFFFFF",
-                  backgroundColor:
-                    message.role === "user" ? "#1E2020" : "transparent",
-                }}
-              >
-                <div
-                  style={{
-                    margin: "0px 0px",
-                    color: "#edecec",
-                    maxWidth: "528px",
-                    fontSize: "14px",
-                    lineHeight: "24px",
-                  }}
-                >
-                  {message.role === "assistant" ? (
-                    <ReactMarkdown
-                      components={{
-                        p: ({ children }) => (
-                          <p
-                            style={{
-                              margin: "0 0 12px 0",
-                            }}
-                          >
-                            {children}
-                          </p>
-                        ),
-                        code: ({ children }) => (
-                          <code
-                            style={{
-                              backgroundColor: "#1E2020",
-                              padding: "0px",
-                              borderRadius: "3px",
-                              fontFamily: "monospace",
-                              fontSize: "13px",
-                              lineHeight: "24px",
-                            }}
-                          >
-                            {children}
-                          </code>
-                        ),
-                        pre: ({ children }) => (
-                          <ScrollArea.Root
-                            style={{
-                              width: "100%",
-                              maxWidth: "528px",
-                              backgroundColor: "#1E2020",
-                              borderRadius: "9px",
-                              margin: "0px -4px",
-                            }}
-                          >
-                            <ScrollArea.Viewport
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                padding: "12px",
-                              }}
-                            >
-                              <pre
-                                style={{
-                                  backgroundColor: "transparent",
-                                  padding: "0",
-                                  margin: "0",
-                                  fontSize: "14px",
-                                  lineHeight: "24px",
-                                  fontFamily: "monospace",
-                                  color: "#edecec",
-                                  whiteSpace: "pre",
-                                  overflow: "visible",
-                                }}
-                              >
-                                {children}
-                              </pre>
-                            </ScrollArea.Viewport>
-                            <ScrollArea.Scrollbar
-                              orientation="horizontal"
-                              style={{
-                                display: "flex",
-                                userSelect: "none",
-                                touchAction: "none",
-                                padding: "2px",
-                                background: "transparent",
-                                transition: "background 160ms ease-out",
-                                height: "8px",
-                              }}
-                            >
-                              <ScrollArea.Thumb
-                                style={{
-                                  flex: 1,
-                                  background: "#4a5568",
-                                  borderRadius: "4px",
-                                  position: "relative",
-                                  transition: "background 160ms ease-out",
-                                }}
-                                onMouseEnter={(e) => {
-                                  (
-                                    e.currentTarget as HTMLElement
-                                  ).style.background = "#5ba97d";
-                                }}
-                                onMouseLeave={(e) => {
-                                  (
-                                    e.currentTarget as HTMLElement
-                                  ).style.background = "#4a5568";
-                                }}
-                              />
-                            </ScrollArea.Scrollbar>
-                            <ScrollArea.Corner
-                              style={{ background: "#1E2020" }}
-                            />
-                          </ScrollArea.Root>
-                        ),
-                        blockquote: ({ children }) => (
-                          <blockquote
-                            style={{
-                              borderLeft: "3px solid #ddd",
-                              paddingLeft: "12px",
-                              margin: "8px 0",
-                              fontStyle: "italic",
-                              color: "#666",
-                            }}
-                          >
-                            {children}
-                          </blockquote>
-                        ),
-                        ul: ({ children }) => (
-                          <ul
-                            style={{ margin: "8px 0px", paddingLeft: "20px" }}
-                          >
-                            {children}
-                          </ul>
-                        ),
-                        ol: ({ children }) => (
-                          <ol
-                            style={{ margin: "8px 0px", paddingLeft: "20px" }}
-                          >
-                            {children}
-                          </ol>
-                        ),
-                        li: ({ children }) => (
-                          <li style={{ margin: "4px 20px" }}>{children}</li>
-                        ),
-                        h1: ({ children }) => (
-                          <h1
-                            style={{
-                              fontSize: "24px",
-                              margin: "16px 0 12px 0",
-                              lineHeight: "24px",
-                              fontWeight: "600",
-                            }}
-                          >
-                            {children}
-                          </h1>
-                        ),
-                        h2: ({ children }) => (
-                          <h2
-                            style={{
-                              fontSize: "18px",
-                              margin: "24px 0 12px 0",
-                              fontWeight: "600",
-                              lineHeight: "24px",
-                            }}
-                          >
-                            {children}
-                          </h2>
-                        ),
-                        h3: ({ children }) => (
-                          <h3
-                            style={{
-                              fontSize: "16px",
-                              margin: "16px 0 12px 0",
-                              fontWeight: "600",
-                              lineHeight: "24px",
-                            }}
-                          >
-                            {children}
-                          </h3>
-                        ),
-                      }}
-                    >
-                      {message.content}
-                    </ReactMarkdown>
-                  ) : (
-                    <p style={{ margin: "0" }}>{message.content}</p>
-                  )}
-                  {chat.streamingMessageId === message.id && (
-                    <span
-                      style={{
-                        animation: "blink 1s infinite",
-                        marginLeft: "2px",
-                      }}
-                    >
-                      ▋
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {chat.isLoading && !chat.streamingMessageId && (
-              <div
-                style={{
-                  padding: "10px",
-                  fontStyle: "italic",
-                  color: "#666",
-                }}
-              >
-                Claude is typing...
+                {chat.model === "claude-sonnet-4-5-20250929"
+                  ? "Claude Sonnet 4.5"
+                  : chat.model === "claude-opus-4-1-20250805"
+                  ? "Claude Opus 4.1"
+                  : chat.model === "claude-3-5-sonnet-20241022"
+                  ? "Claude Sonnet 4"
+                  : chat.model === "claude-3-5-haiku-20241022"
+                  ? "Claude 3.5 Haiku"
+                  : chat.model === "claude-3-opus-20240229"
+                  ? "Claude 3 Opus"
+                  : chat.model === "gpt-5-2025-08-07"
+                  ? "GPT-5"
+                  : chat.model === "gpt-5-mini-2025-08-07"
+                  ? "GPT-5 Mini"
+                  : chat.model === "gpt-5-nano-2025-08-07"
+                  ? "GPT-5 Nano"
+                  : chat.model === "gpt-5-chat-latest"
+                  ? "GPT-5 Chat"
+                  : chat.model === "gpt-4o"
+                  ? "GPT-4o"
+                  : chat.model === "gpt-4o-mini"
+                  ? "GPT-4o Mini"
+                  : chat.model === "gpt-4-turbo"
+                  ? "GPT-4 Turbo"
+                  : chat.model === "gpt-3.5-turbo"
+                  ? "GPT-3.5 Turbo"
+                  : chat.model === "o1-preview"
+                  ? "o1-preview"
+                  : chat.model === "o1-mini"
+                  ? "o1-mini"
+                  : chat.model}
               </div>
             )}
 
-            {/* Auto-scroll anchor */}
-            <div ref={messagesEndRef} />
-          </ScrollArea.Viewport>
-
-          <ScrollArea.Scrollbar
-            orientation="vertical"
-            style={{
-              display: "flex",
-              userSelect: "none",
-              touchAction: "none",
-              padding: "2px",
-              background: "transparent",
-              transition: "background 160ms ease-out",
-              width: "8px",
-            }}
-          >
-            <ScrollArea.Thumb
+            {/* Branch button */}
+            <button
+              onClick={handleBranch}
               style={{
-                flex: 1,
-                background: "#4a5568",
-                borderRadius: "4px",
-                position: "relative",
-                transition: "background 160ms ease-out",
+                backgroundColor: "#1e2020",
+                border: "none",
+                borderRadius: "9px",
+                padding: "4px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                cursor: "pointer",
+                height: "24px",
               }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "#5ba97d";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "#4a5568";
-              }}
+            >
+              <Split
+                size={14}
+                color="#8d9693"
+                style={{ transform: "rotate(90deg)" }}
+              />
+              <span
+                style={{
+                  color: "#8d9693",
+                  fontSize: "14px",
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: "600",
+                  lineHeight: "14px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Branch
+              </span>
+            </button>
+            {/* Chat menu dropdown */}
+            <Dropdown
+              trigger={
+                <button
+                  style={{
+                    backgroundColor: "#1e2020",
+                    border: "none",
+                    borderRadius: "9px",
+                    padding: "4px 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    height: "24px",
+                    width: "38px",
+                  }}
+                >
+                  <Ellipsis size={14} color="#8d9693" />
+                </button>
+              }
+              options={chatMenuOptions}
+              onValueChange={handleChatAction}
+              width={200}
+              maxHeight={120}
             />
-          </ScrollArea.Scrollbar>
-
-          <ScrollArea.Corner style={{ background: "transparent" }} />
-        </ScrollArea.Root>
-      )}
-
-      {/* Floating scroll to bottom button */}
-      {chat.messages.length > 0 && !isNearBottom && (
-        <button
-          onClick={scrollToBottom}
+          </div>
+        </div>
+        <div
           style={{
-            position: "absolute",
-            bottom: `${snap.chatComposerHeight + 16}px`, // Position above chat composer
-            left: "50%",
-            transform: "translateX(-50%)",
-            backgroundColor: "#1e2020",
-            border: "1px solid #2d302f",
-            borderRadius: "50%",
-            width: "40px",
-            height: "40px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            zIndex: 10,
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
-            transition: "all 0.2s ease",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.backgroundColor = "#2d302f";
-            (e.currentTarget as HTMLElement).style.transform = "translateX(-50%) scale(1.05)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.backgroundColor = "#1e2020";
-            (e.currentTarget as HTMLElement).style.transform = "translateX(-50%) scale(1)";
+            maxWidth: "720px",
+            width: "100%",
+            display: "table",
+            margin: "0 auto",
           }}
         >
-          <ChevronDown size={20} color="#8d9693" />
-        </button>
-      )}
+          {chat.messages.length === 0 ? (
+            <ChatEmptyState
+              chatId={chat.id}
+              selectedModel={chat.model}
+              input={chat.input}
+              spaceId={snap.activeSpaceId!}
+              isLoading={chat.isLoading}
+            />
+          ) : (
+            <ScrollArea.Root
+              style={{
+                flex: 1,
+                maxHeight: `calc(100vh - ${
+                  snap.chatHeaderHeight + snap.chatComposerHeight + 16
+                }px)`, // 80px accounts for margins and padding
+              }}
+            >
+              <ScrollArea.Viewport
+                ref={scrollAreaRef}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  padding: "8px",
+                  // paddingRight: "0px", // Add space for scrollbar,
+                }}
+              >
+                {chat.messages.map((message) => (
+                  <div
+                    key={message.id}
+                    style={{
+                      marginBottom: "10px",
+                      padding:
+                        message.role === "user" ? "12px 12px" : "8px 8px",
+                      margin: message.role === "user" ? "0px 0px" : "0px",
+                      borderRadius: "9px",
+                      color: "#FFFFFF",
+                      backgroundColor:
+                        message.role === "user" ? "#1E2020" : "transparent",
+                    }}
+                  >
+                    <div
+                      style={{
+                        margin: "0px 0px",
+                        color: "#edecec",
+                        maxWidth: "528px",
+                        fontSize: "14px",
+                        lineHeight: "24px",
+                      }}
+                    >
+                      {message.role === "assistant" ? (
+                        <ReactMarkdown
+                          components={{
+                            p: ({ children }) => (
+                              <p
+                                style={{
+                                  margin: "0 0 12px 0",
+                                }}
+                              >
+                                {children}
+                              </p>
+                            ),
+                            code: ({ children }) => (
+                              <code
+                                style={{
+                                  backgroundColor: "#1E2020",
+                                  padding: "0px",
+                                  borderRadius: "3px",
+                                  fontFamily: "monospace",
+                                  fontSize: "13px",
+                                  lineHeight: "24px",
+                                }}
+                              >
+                                {children}
+                              </code>
+                            ),
+                            pre: ({ children }) => (
+                              <ScrollArea.Root
+                                style={{
+                                  width: "100%",
+                                  maxWidth: "528px",
+                                  backgroundColor: "#1E2020",
+                                  borderRadius: "9px",
+                                  margin: "0px -4px",
+                                }}
+                              >
+                                <ScrollArea.Viewport
+                                  style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    padding: "12px",
+                                  }}
+                                >
+                                  <pre
+                                    style={{
+                                      backgroundColor: "transparent",
+                                      padding: "0",
+                                      margin: "0",
+                                      fontSize: "14px",
+                                      lineHeight: "24px",
+                                      fontFamily: "monospace",
+                                      color: "#edecec",
+                                      whiteSpace: "pre",
+                                      overflow: "visible",
+                                    }}
+                                  >
+                                    {children}
+                                  </pre>
+                                </ScrollArea.Viewport>
+                                <ScrollArea.Scrollbar
+                                  orientation="horizontal"
+                                  style={{
+                                    display: "flex",
+                                    userSelect: "none",
+                                    touchAction: "none",
+                                    padding: "2px",
+                                    background: "transparent",
+                                    transition: "background 160ms ease-out",
+                                    height: "8px",
+                                  }}
+                                >
+                                  <ScrollArea.Thumb
+                                    style={{
+                                      flex: 1,
+                                      background: "#4a5568",
+                                      borderRadius: "4px",
+                                      position: "relative",
+                                      transition: "background 160ms ease-out",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      (
+                                        e.currentTarget as HTMLElement
+                                      ).style.background = "#5ba97d";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      (
+                                        e.currentTarget as HTMLElement
+                                      ).style.background = "#4a5568";
+                                    }}
+                                  />
+                                </ScrollArea.Scrollbar>
+                                <ScrollArea.Corner
+                                  style={{ background: "#1E2020" }}
+                                />
+                              </ScrollArea.Root>
+                            ),
+                            blockquote: ({ children }) => (
+                              <blockquote
+                                style={{
+                                  borderLeft: "3px solid #ddd",
+                                  paddingLeft: "12px",
+                                  margin: "8px 0",
+                                  fontStyle: "italic",
+                                  color: "#666",
+                                }}
+                              >
+                                {children}
+                              </blockquote>
+                            ),
+                            ul: ({ children }) => (
+                              <ul
+                                style={{
+                                  margin: "8px 0px",
+                                  paddingLeft: "20px",
+                                }}
+                              >
+                                {children}
+                              </ul>
+                            ),
+                            ol: ({ children }) => (
+                              <ol
+                                style={{
+                                  margin: "8px 0px",
+                                  paddingLeft: "20px",
+                                }}
+                              >
+                                {children}
+                              </ol>
+                            ),
+                            li: ({ children }) => (
+                              <li style={{ margin: "4px 20px" }}>{children}</li>
+                            ),
+                            h1: ({ children }) => (
+                              <h1
+                                style={{
+                                  fontSize: "24px",
+                                  margin: "16px 0 12px 0",
+                                  lineHeight: "24px",
+                                  fontWeight: "600",
+                                }}
+                              >
+                                {children}
+                              </h1>
+                            ),
+                            h2: ({ children }) => (
+                              <h2
+                                style={{
+                                  fontSize: "18px",
+                                  margin: "24px 0 12px 0",
+                                  fontWeight: "600",
+                                  lineHeight: "24px",
+                                }}
+                              >
+                                {children}
+                              </h2>
+                            ),
+                            h3: ({ children }) => (
+                              <h3
+                                style={{
+                                  fontSize: "16px",
+                                  margin: "16px 0 12px 0",
+                                  fontWeight: "600",
+                                  lineHeight: "24px",
+                                }}
+                              >
+                                {children}
+                              </h3>
+                            ),
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                      ) : (
+                        <p style={{ margin: "0" }}>{message.content}</p>
+                      )}
+                      {chat.streamingMessageId === message.id && (
+                        <span
+                          style={{
+                            animation: "blink 1s infinite",
+                            marginLeft: "2px",
+                          }}
+                        >
+                          ▋
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
 
-      {chat.messages.length > 0 && (
-        <ChatComposer
-          ref={chatComposerRef}
-          chatId={chat.id}
-          selectedModel={chat.model}
-          input={chat.input}
-          isLoading={chat.isLoading}
-          onInputChange={handleInputChange}
-          onSubmit={handleSubmit}
-          shouldClear={shouldClearEditor}
-          onCleared={() => setShouldClearEditor(false)}
-          placeholder="Type your message..."
-          showModelSelector={false}
-        />
-      )}
+                {chat.isLoading && !chat.streamingMessageId && (
+                  <div
+                    style={{
+                      padding: "10px",
+                      fontStyle: "italic",
+                      color: "#666",
+                    }}
+                  >
+                    Claude is typing...
+                  </div>
+                )}
+
+                {/* Auto-scroll anchor */}
+                <div ref={messagesEndRef} />
+              </ScrollArea.Viewport>
+
+              <ScrollArea.Scrollbar
+                orientation="vertical"
+                style={{
+                  display: "flex",
+                  userSelect: "none",
+                  touchAction: "none",
+                  padding: "2px",
+                  background: "transparent",
+                  transition: "background 160ms ease-out",
+                  width: "8px",
+                }}
+              >
+                <ScrollArea.Thumb
+                  style={{
+                    flex: 1,
+                    background: "#4a5568",
+                    borderRadius: "4px",
+                    position: "relative",
+                    transition: "background 160ms ease-out",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.background =
+                      "#5ba97d";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.background =
+                      "#4a5568";
+                  }}
+                />
+              </ScrollArea.Scrollbar>
+
+              <ScrollArea.Corner style={{ background: "transparent" }} />
+            </ScrollArea.Root>
+          )}
+
+          {/* Floating scroll to bottom button */}
+          {chat.messages.length > 0 && !isNearBottom && (
+            <button
+              onClick={scrollToBottom}
+              style={{
+                position: "absolute",
+                bottom: `${snap.chatComposerHeight + 16}px`, // Position above chat composer
+                left: "50%",
+                transform: "translateX(-50%)",
+                backgroundColor: "#1e2020",
+                border: "1px solid #2d302f",
+                borderRadius: "50%",
+                width: "40px",
+                height: "40px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                zIndex: 10,
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.backgroundColor =
+                  "#2d302f";
+                (e.currentTarget as HTMLElement).style.transform =
+                  "translateX(-50%) scale(1.05)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.backgroundColor =
+                  "#1e2020";
+                (e.currentTarget as HTMLElement).style.transform =
+                  "translateX(-50%) scale(1)";
+              }}
+            >
+              <ChevronDown size={20} color="#8d9693" />
+            </button>
+          )}
+
+          {chat.messages.length > 0 && (
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
+              <div
+                style={{
+                  maxWidth: 720,
+                  width: "100%",
+                  display: "table",
+                  margin: "0 auto",
+                }}
+              >
+                <ChatComposer
+                  ref={chatComposerRef}
+                  chatId={chat.id}
+                  selectedModel={chat.model}
+                  input={chat.input}
+                  isLoading={chat.isLoading}
+                  onInputChange={handleInputChange}
+                  onSubmit={handleSubmit}
+                  shouldClear={shouldClearEditor}
+                  onCleared={() => setShouldClearEditor(false)}
+                  placeholder="Type your message..."
+                  showModelSelector={false}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

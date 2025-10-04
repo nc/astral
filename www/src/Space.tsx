@@ -17,16 +17,6 @@ export function Space({ space }: SpaceProps) {
   const isInitialMount = useRef(true);
   const previousActiveChatId = useRef(snap.activeChatId);
 
-  const handleAddChat = () => {
-    const chatTitle =
-      space.chatOrder.length === 0
-        ? "New Chat"
-        : `Chat ${space.chatOrder.length + 1}`;
-    const newChat = actions.createChat(space.id, chatTitle);
-
-    // Scroll to the new chat after it's created and rendered
-    setTimeout(() => scrollToChatIfNeeded(newChat.id, true), 100);
-  };
 
   // Function to scroll to make a specific chat fully visible
   const scrollToChatIfNeeded = (chatId: string, useSmooth = false) => {
@@ -231,6 +221,7 @@ export function Space({ space }: SpaceProps) {
               display: "flex",
               height: "100%",
               paddingLeft: 8,
+              width: space.chatOrder.length === 1 ? "100%" : undefined,
             }}
           >
             {space.chatOrder.map((chatId) => {
@@ -245,30 +236,14 @@ export function Space({ space }: SpaceProps) {
                       chatRefs.current.delete(chat.id);
                     }
                   }}
+                  style={{
+                    width: space.chatOrder.length === 1 ? "100%" : undefined,
+                  }}
                 >
                   <Chat chat={chat} />
                 </div>
               );
             })}
-            <button
-              onClick={handleAddChat}
-              style={{
-                padding: "8px 16px",
-                backgroundColor: "var(--card-bg)",
-                color: "#8D9693",
-                fontSize: "16px",
-                fontWeight: "600",
-                border: "none",
-                borderRadius: "12px",
-                cursor: "pointer",
-                position: "relative",
-                top: "8px",
-                writingMode: "vertical-rl",
-                textOrientation: "mixed",
-              }}
-            >
-              New Chat
-            </button>
           </div>
         </ScrollArea.Viewport>
         <ScrollArea.Scrollbar

@@ -254,6 +254,7 @@ export const ChatComposer = forwardRef<ChatComposerRef, ChatComposerProps>(
             border: isFocused ? "1px solid #5ba97d" : "1px solid transparent",
             transition: "border-color 0.2s ease",
             cursor: "text",
+            boxShadow: "0 -1px 3px rgba(0, 0, 0, 0.2)",
           }}
         >
           <div>
