@@ -39,6 +39,7 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "tsx": "^4.20.6",
     "uuid": "^13.0.0",
     "valtio": "^2.1.7"

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import * as ScrollArea from "@radix-ui/react-scroll-area";
 import { Split, Ellipsis, Trash2, ChevronDown } from "lucide-react";
 import { useSnapshot } from "valtio";
@@ -475,13 +476,13 @@ export function Chat({ chat }: ChatProps) {
                       style={{
                         margin: "0px 0px",
                         color: "#edecec",
-                        maxWidth: "528px",
                         fontSize: "14px",
                         lineHeight: "24px",
                       }}
                     >
                       {message.role === "assistant" ? (
                         <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
                           components={{
                             p: ({ children }) => (
                               <p
@@ -649,6 +650,86 @@ export function Chat({ chat }: ChatProps) {
                               >
                                 {children}
                               </h3>
+                            ),
+                            table: ({ children }) => (
+                              <ScrollArea.Root
+                                style={{
+                                  width: "100%",
+                                  maxWidth: "720px",
+                                  margin: "16px 0",
+                                }}
+                              >
+                                <ScrollArea.Viewport
+                                  style={{
+                                    width: "100%",
+                                    height: "100%",
+                                  }}
+                                >
+                                  <table
+                                    style={{
+                                      borderCollapse: "collapse",
+                                      width: "100%",
+                                      fontSize: "14px",
+                                      lineHeight: "24px",
+                                    }}
+                                  >
+                                    {children}
+                                  </table>
+                                </ScrollArea.Viewport>
+                                <ScrollArea.Scrollbar
+                                  orientation="horizontal"
+                                  style={{
+                                    display: "flex",
+                                    userSelect: "none",
+                                    touchAction: "none",
+                                    padding: "2px",
+                                    background: "transparent",
+                                    height: "8px",
+                                  }}
+                                >
+                                  <ScrollArea.Thumb
+                                    style={{
+                                      flex: 1,
+                                      background: "#4a5568",
+                                      borderRadius: "4px",
+                                      position: "relative",
+                                    }}
+                                  />
+                                </ScrollArea.Scrollbar>
+                              </ScrollArea.Root>
+                            ),
+                            tbody: ({ children }) => <tbody>{children}</tbody>,
+                            tr: ({ children }) => (
+                              <tr
+                                style={{
+                                  borderBottom: "1px solid #2d302f",
+                                }}
+                              >
+                                {children}
+                              </tr>
+                            ),
+                            th: ({ children }) => (
+                              <th
+                                style={{
+                                  padding: "4px 4px 2px",
+                                  textAlign: "left",
+                                  fontWeight: "600",
+                                  color: "#edecec",
+                                  borderBottom: "2px solid #2d302f",
+                                }}
+                              >
+                                {children}
+                              </th>
+                            ),
+                            td: ({ children }) => (
+                              <td
+                                style={{
+                                  padding: "4px 4px 3px",
+                                  color: "#edecec",
+                                }}
+                              >
+                                {children}
+                              </td>
                             ),
                           }}
                         >
