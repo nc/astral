@@ -518,10 +518,10 @@ export function Chat({ chat }: ChatProps) {
                               <ScrollArea.Root
                                 style={{
                                   width: "100%",
-                                  maxWidth: "528px",
+                                  maxWidth: "720px",
                                   backgroundColor: "#1E2020",
                                   borderRadius: "9px",
-                                  margin: "0px -4px",
+                                  margin: "0px 0px 24px",
                                 }}
                               >
                                 <ScrollArea.Viewport
