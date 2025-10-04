@@ -1,6 +1,39 @@
 import { proxy } from 'valtio'
 import { v4 as uuidv4 } from 'uuid'
 import { getWebSocketClient, getRegistryClient } from './websocket-client'
+import { z } from 'zod'
+
+// Zod schemas for backend data validation
+const BackendSpaceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number().optional(),
+  metadata: z.record(z.any()).optional(),
+})
+
+const BackendChatSchema = z.object({
+  id: z.string(),
+  spaceId: z.string().optional(),
+  name: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number().optional(),
+  position: z.number(),
+  metadata: z.record(z.any()).optional(),
+})
+
+const BackendMessageSchema = z.object({
+  id: z.string(),
+  chatId: z.string().optional(),
+  content: z.string(),
+  role: z.enum(['user', 'assistant', 'system']),
+  timestamp: z.number(),
+  metadata: z.record(z.any()).optional(),
+})
+
+const BackendSpacesArraySchema = z.array(BackendSpaceSchema)
+const BackendChatsArraySchema = z.array(BackendChatSchema)
+const BackendMessagesArraySchema = z.array(BackendMessageSchema)
 
 export interface Message {
   id: string
@@ -62,7 +95,10 @@ export const actions = {
     console.log('Initializing app from backend...');
     try {
       const registry = await getRegistryClient();
-      const spaces = await registry.getSpaces();
+      const rawSpaces = await registry.getSpaces();
+
+      // Validate spaces data
+      const spaces = BackendSpacesArraySchema.parse(rawSpaces);
       console.log(`Loaded ${spaces.length} spaces from registry:`, spaces);
 
       // Load all spaces and their chats
@@ -83,7 +119,10 @@ export const actions = {
           // Load chats for this space
           try {
             const client = await getWebSocketClient(spaceData.id);
-            const backendChats = await client.getChats();
+            const rawChats = await client.getChats();
+
+            // Validate chats data
+            const backendChats = BackendChatsArraySchema.parse(rawChats);
             console.log(`  Loaded ${backendChats.length} chats for space ${spaceData.id}`);
 
             // Backend returns chats ordered by position ASC, so we can add them in order
@@ -91,7 +130,10 @@ export const actions = {
               console.log(`    Chat: ${backendChat.name} (${backendChat.id}) at position ${backendChat.position}`);
 
               // Load messages for this chat
-              const backendMessages = await client.getMessages(backendChat.id);
+              const rawMessages = await client.getMessages(backendChat.id);
+
+              // Validate messages data
+              const backendMessages = BackendMessagesArraySchema.parse(rawMessages);
               console.log(`      Loaded ${backendMessages.length} messages`);
 
               const messages = backendMessages.map(msg => ({
@@ -149,7 +191,11 @@ export const actions = {
     // Sync with backend
     try {
       const client = await getWebSocketClient(spaceId);
-      const backendSpace = await client.getOrCreateSpace(name);
+      const rawSpace = await client.getOrCreateSpace(name);
+
+      // Validate space data
+      const backendSpace = BackendSpaceSchema.parse(rawSpace);
+
       // Update with backend data
       space.createdAt = backendSpace.createdAt;
 
@@ -158,6 +204,9 @@ export const actions = {
       await registry.registerSpace(spaceId, name);
     } catch (error) {
       console.error('Failed to sync space with backend:', error);
+      if (error instanceof z.ZodError) {
+        console.error('Validation errors:', error.errors);
+      }
     }
 
     return space
@@ -170,7 +219,10 @@ export const actions = {
     // Load chats from backend
     try {
       const client = await getWebSocketClient(spaceId);
-      const backendChats = await client.getChats();
+      const rawChats = await client.getChats();
+
+      // Validate chats data
+      const backendChats = BackendChatsArraySchema.parse(rawChats);
 
       // Sync backend chats with local store (backend returns ordered by position ASC)
       const backendChatIds = new Set(backendChats.map(c => c.id));
@@ -182,7 +234,10 @@ export const actions = {
       for (const backendChat of backendChats) {
         if (!space.chats[backendChat.id]) {
           // Load messages for this chat
-          const backendMessages = await client.getMessages(backendChat.id);
+          const rawMessages = await client.getMessages(backendChat.id);
+
+          // Validate messages data
+          const backendMessages = BackendMessagesArraySchema.parse(rawMessages);
           console.log(`  Loaded ${backendMessages.length} messages for chat ${backendChat.id}`);
 
           const messages = backendMessages.map(msg => ({
@@ -285,7 +340,10 @@ export const actions = {
     // Create chat in backend first to get the real ID
     try {
       const client = await getWebSocketClient(spaceId);
-      const backendChat = await client.createChat(title, { type: 'chat' }, position);
+      const rawChat = await client.createChat(title, { type: 'chat' }, position);
+
+      // Validate chat data
+      const backendChat = BackendChatSchema.parse(rawChat);
 
       const chat: Chat = {
         id: backendChat.id,
@@ -330,7 +388,10 @@ export const actions = {
       console.log(`Loading messages for chat ${chatId} in space ${spaceId}`);
       try {
         const client = await getWebSocketClient(spaceId);
-        const backendMessages = await client.getMessages(chatId);
+        const rawMessages = await client.getMessages(chatId);
+
+        // Validate messages data
+        const backendMessages = BackendMessagesArraySchema.parse(rawMessages);
         console.log(`Loaded ${backendMessages.length} messages from backend`);
 
         // Convert backend messages to store format
@@ -344,6 +405,9 @@ export const actions = {
         }
       } catch (error) {
         console.error('Failed to load messages from backend:', error);
+        if (error instanceof z.ZodError) {
+          console.error('Validation errors:', error.errors);
+        }
       }
     } else {
       console.log(`Chat ${chatId} already has ${chat.messages.length} messages loaded`);
@@ -372,11 +436,14 @@ export const actions = {
 
     // Create the branched chat in backend at the correct position
     const client = await getWebSocketClient(spaceId);
-    const backendChat = await client.createChat(
+    const rawChat = await client.createChat(
       sourceChat.title + ' (Branch)',
       { type: 'branch', sourceChatId: chatId },
       branchPosition
     );
+
+    // Validate chat data
+    const backendChat = BackendChatSchema.parse(rawChat);
 
     // Clone the chat locally
     const branchedChat: Chat = {
