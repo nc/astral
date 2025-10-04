@@ -1,3 +1,4 @@
+import * as React from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as ScrollArea from "@radix-ui/react-scroll-area";
 import { Check } from "lucide-react";
@@ -6,6 +7,12 @@ import { actions } from "../store";
 interface MultiModelSelectorProps {
   selectedModels: string[];
 }
+
+const FEATURED_MODELS = [
+  "claude-sonnet-4-5-20250929",
+  "gpt-5-2025-08-07",
+  "gpt-5-mini-2025-08-07",
+];
 
 const AVAILABLE_MODELS = [
   // Anthropic Models - Latest
@@ -124,6 +131,8 @@ const AVAILABLE_MODELS = [
 ];
 
 export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) {
+  const [showAll, setShowAll] = React.useState(false);
+
   const getDisplayText = () => {
     if (selectedModels.length === 0) {
       return "Select a model";
@@ -142,6 +151,10 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
     console.log(`MultiModelSelector: handleModelToggle called with modelId=${modelId}, shiftKey=${shiftKey}`);
     actions.toggleEmptySpaceModel(modelId, shiftKey);
   };
+
+  const featuredModels = AVAILABLE_MODELS.filter(m => FEATURED_MODELS.includes(m.id));
+  const otherModels = AVAILABLE_MODELS.filter(m => !FEATURED_MODELS.includes(m.id));
+  const modelsToShow = showAll ? AVAILABLE_MODELS : featuredModels;
 
   return (
     <DropdownMenu.Root>
@@ -237,7 +250,7 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
               >
                 Hold Shift to select multiple models
               </div>
-                {AVAILABLE_MODELS.map((model) => {
+                {modelsToShow.map((model) => {
                   const isSelected = selectedModels.includes(model.id);
                   return (
                     <div
@@ -290,6 +303,41 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
                     </div>
                   );
                 })}
+                {!showAll && (
+                  <div
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowAll(true);
+                    }}
+                    style={{
+                      fontSize: "14px",
+                      fontFamily: "'Inter', sans-serif",
+                      fontWeight: "400",
+                      color: "#8d9693",
+                      backgroundColor: "transparent",
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      outline: "none",
+                      userSelect: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "4px",
+                      borderTop: "1px solid #2d302f",
+                      marginTop: "4px",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.backgroundColor = "#2d302f";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                    }}
+                  >
+                    See all ({otherModels.length} more)
+                  </div>
+                )}
             </ScrollArea.Viewport>
             <ScrollArea.Scrollbar
               orientation="vertical"
