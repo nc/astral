@@ -476,12 +476,13 @@ export const actions = {
     const sourceIndex = space.chatOrder.indexOf(chatId)
     const branchPosition = sourceIndex + 1
 
-    // Create the branched chat in backend at the correct position
+    // Create the branched chat in backend at the correct position with the source chat's model
     const client = await getWebSocketClient(spaceId);
     const rawChat = await client.createChat(
       sourceChat.title + ' (Branch)',
       { type: 'branch', sourceChatId: chatId },
-      branchPosition
+      branchPosition,
+      sourceChat.model || store.defaultModel
     );
 
     // Validate chat data

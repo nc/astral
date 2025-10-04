@@ -1,102 +1,194 @@
-import { useEffect } from 'react';
+import Asterisk3D from "./Asterisk3D";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8787';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8787";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GCP_OAUTH_CLIENT_ID;
 
 export function SignIn() {
   const handleSignIn = () => {
     const redirectUri = `${BACKEND_URL}/auth/callback`;
-    const scope = 'email profile openid';
+    const scope = "email profile openid";
 
-    const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
-    authUrl.searchParams.set('redirect_uri', redirectUri);
-    authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set('scope', scope);
-    authUrl.searchParams.set('access_type', 'offline');
-    authUrl.searchParams.set('prompt', 'consent');
+    const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("scope", scope);
+    authUrl.searchParams.set("access_type", "offline");
+    authUrl.searchParams.set("prompt", "consent");
 
     window.location.href = authUrl.toString();
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: '100vw',
-        height: '100vh',
-        backgroundColor: '#151817',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-      }}
-    >
+    <>
+      <style>{`
+        @media (max-width: 768px) {
+          .signin-container {
+            flex-direction: column !important;
+            padding: 24px !important;
+          }
+          .asterisk-wrapper {
+            position: relative !important;
+            left: 0 !important;
+            top: 0 !important;
+            transform: none !important;
+            width: 246px !important;
+            height: 263px !important;
+            margin: 0 auto 40px auto !important;
+          }
+          .content-wrapper {
+            margin-left: 0 !important;
+            align-items: center !important;
+            text-align: center !important;
+          }
+          .signin-title {
+            font-size: 24px !important;
+            line-height: 32px !important;
+          }
+          .features-list {
+            align-items: center !important;
+          }
+        }
+      `}</style>
       <div
+        className="signin-container"
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '24px',
-          padding: '48px',
-          backgroundColor: '#1E2020',
-          borderRadius: '16px',
-          border: '1px solid #2d302f',
+          display: "flex",
+          width: "100vw",
+          height: "100vh",
+          backgroundColor: "#151817",
+          fontFamily: "Inter, system-ui, -apple-system, sans-serif",
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
         }}
       >
-        <h1
+        {/* 3D Model - Background, positioned absolutely */}
+        <div
+          className="asterisk-wrapper"
           style={{
-            fontSize: '32px',
-            fontWeight: '600',
-            color: '#edecec',
-            margin: '0 0 8px 0',
+            position: "absolute",
+            left: "10%",
+            top: "50%",
+            transform: "translateY(-50%)",
+            width: "600px",
+            height: "600px",
+            zIndex: 0,
           }}
         >
-          Welcome
-        </h1>
-        <p
+          <Asterisk3D />
+        </div>
+
+        {/* Content - Centered */}
+        <div
+          className="content-wrapper"
           style={{
-            fontSize: '16px',
-            color: '#8d9693',
-            margin: '0 0 16px 0',
+            marginLeft: "400px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            zIndex: 1,
+            position: "relative",
           }}
         >
-          Sign in to access your spaces
-        </p>
-        <button
-          onClick={handleSignIn}
+          {/* Title */}
+          <h1
+            className="signin-title"
+            style={{
+              fontSize: "32px",
+              fontWeight: "600",
+              color: "#ffffff",
+              margin: "0 0 12px 0",
+            }}
+          >
+            Astral
+          </h1>
+
+          {/* Tagline */}
+          <p
+            style={{
+              fontSize: "14px",
+              fontWeight: "600",
+              color: "#8d9693",
+              margin: "0 0 24px 0",
+              lineHeight: "24px",
+            }}
+          >
+            The pro-user GPT client.
+          </p>
+
+          {/* Sign in button */}
+          <button
+            onClick={handleSignIn}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "200px",
+              height: "36px",
+              padding: "0 24px",
+              backgroundColor: "#5ba97d",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: "9px",
+              fontSize: "14px",
+              fontWeight: "600",
+              cursor: "pointer",
+              transition: "transform 0.2s ease, box-shadow 0.2s ease",
+              marginBottom: "32px",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-1px)";
+              e.currentTarget.style.boxShadow =
+                "0 2px 8px rgba(91, 169, 125, 0.3)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "none";
+            }}
+          >
+            Sign in with Google
+          </button>
+
+          {/* Features list */}
+          <div
+            className="features-list"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0",
+              fontSize: "12px",
+              fontWeight: "500",
+              color: "#ffffff",
+              opacity: 0.4,
+              lineHeight: "24px",
+            }}
+          >
+            <p style={{ margin: 0 }}>Multi-model</p>
+            <p style={{ margin: 0 }}>Branching</p>
+            <p style={{ margin: 0 }}>Themes</p>
+            <p style={{ margin: 0 }}>Artifacts</p>
+            <p style={{ margin: 0 }}>Keyboard shortcuts</p>
+            <p style={{ margin: 0 }}>Free during beta</p>
+          </div>
+        </div>
+
+        {/* Footer - Absolute positioned at bottom */}
+        <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '12px 24px',
-            backgroundColor: '#ffffff',
-            color: '#1f1f1f',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '16px',
-            fontWeight: '500',
-            cursor: 'pointer',
-            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'none';
+            position: "absolute",
+            bottom: "24px",
+            left: "24px",
+            fontSize: "12px",
+            fontWeight: "500",
+            color: "#ffffff",
+            opacity: 0.4,
+            lineHeight: "24px",
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 48 48">
-            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-            <path fill="none" d="M0 0h48v48H0z"/>
-          </svg>
-          Sign in with Google
-        </button>
+          Privacy Policy · Support · 2025
+        </div>
       </div>
-    </div>
+    </>
   );
 }
