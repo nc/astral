@@ -4,31 +4,86 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { store, actions, type Space as ISpace } from "./store";
 import { SpacesList } from "./SpacesList";
 import { Space } from "./Space";
+import { SignIn } from "./SignIn";
 import "./App.css";
+
+interface UserInfo {
+  userId: string;
+  email: string;
+  name: string;
+  picture: string;
+}
 
 function App() {
   const snap = useSnapshot(store);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [user, setUser] = useState<UserInfo | null>(null);
 
-  // Initialize from backend on mount
+  // Check for OAuth callback on mount
   useEffect(() => {
-    actions.init().then(() => {
-      setIsInitialized(true);
-      console.log('App initialized from backend');
-    }).catch(error => {
-      console.error('Failed to initialize app:', error);
-      setIsInitialized(true); // Still show UI even if init fails
-    });
+    const params = new URLSearchParams(window.location.search);
+    const userId = params.get('userId');
+    const email = params.get('email');
+    const name = params.get('name');
+    const picture = params.get('picture');
+
+    if (userId && email && name) {
+      // Store user info
+      const userInfo: UserInfo = { userId, email, name, picture: picture || '' };
+      setUser(userInfo);
+      localStorage.setItem('user', JSON.stringify(userInfo));
+
+      // Clean up URL
+      window.history.replaceState({}, '', '/');
+    } else {
+      // Check localStorage for existing session
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch (error) {
+          console.error('Failed to parse stored user:', error);
+          localStorage.removeItem('user');
+        }
+      }
+    }
   }, []);
+
+  // Initialize from backend when user is authenticated
+  useEffect(() => {
+    if (user) {
+      actions.init(user.userId).then(() => {
+        setIsInitialized(true);
+        console.log('App initialized from backend for user:', user.email);
+      }).catch(error => {
+        console.error('Failed to initialize app:', error);
+        setIsInitialized(true); // Still show UI even if init fails
+      });
+    }
+  }, [user]);
 
   const activeSpace = snap.activeSpaceId
     ? snap.spaces[snap.activeSpaceId]
     : undefined;
 
+  // Show sign-in page if not authenticated
+  if (!user) {
+    return <SignIn />;
+  }
+
+  // Show loading while initializing
   if (!isInitialized) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100vw', height: '100vh' }}>
-        <div>Loading...</div>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: '#151817',
+        color: '#edecec',
+      }}>
+        <div>Loading your spaces...</div>
       </div>
     );
   }
@@ -74,7 +129,7 @@ function App() {
       </button>
 
       {/* Sidebar */}
-      {snap.sidebarVisible && <SpacesList />}
+      {snap.sidebarVisible && <SpacesList user={user} />}
 
       {/* Main Content */}
       {activeSpace ? (

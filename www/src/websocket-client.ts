@@ -367,12 +367,12 @@ export class RegistryWebSocketClient {
     });
   }
 
-  async registerSpace(spaceId: string, name: string) {
-    return this.call('registerSpace', { spaceId, name });
+  async registerSpace(spaceId: string, name: string, userId?: string) {
+    return this.call('registerSpace', { spaceId, name, userId });
   }
 
-  async getSpaces() {
-    return this.call('getSpaces');
+  async getSpaces(userId?: string) {
+    return this.call('getSpaces', { userId });
   }
 
   async unregisterSpace(spaceId: string) {

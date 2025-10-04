@@ -1,11 +1,22 @@
 import { useState } from "react";
 import { useSnapshot } from "valtio";
-import { Eclipse, Plus, Trash2, Edit2 } from "lucide-react";
+import { Eclipse, Plus, Trash2, Edit2, Settings, LogOut } from "lucide-react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { store, actions } from "./store";
 import { RenameSpaceModal } from "./components/RenameSpaceModal";
+import { SettingsModal } from "./components/SettingsModal";
 
-export function SpacesList() {
+interface SpacesListProps {
+  user: {
+    userId: string;
+    email: string;
+    name: string;
+    picture: string;
+  };
+}
+
+export function SpacesList({ user }: SpacesListProps) {
   console.log("Rendering SpacesList");
   const snap = useSnapshot(store);
   const [renameModalOpen, setRenameModalOpen] = useState(false);
@@ -13,6 +24,7 @@ export function SpacesList() {
     id: string;
     name: string;
   } | null>(null);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
 
   const handleCreateSpace = () => {
     actions.createSpace("New Space");
@@ -35,6 +47,11 @@ export function SpacesList() {
   const closeRenameModal = () => {
     setRenameModalOpen(false);
     setSpaceToRename(null);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    window.location.href = '/';
   };
 
   return (
@@ -373,6 +390,145 @@ export function SpacesList() {
           currentName={spaceToRename.name}
         />
       )}
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={settingsModalOpen}
+        onClose={() => setSettingsModalOpen(false)}
+      />
+
+      {/* User Menu */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: "16px",
+          left: "16px",
+        }}
+      >
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button
+              style={{
+                width: "24px",
+                height: "24px",
+                borderRadius: "50%",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                overflow: "hidden",
+                backgroundColor: "#2d302f",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              title={user.name}
+            >
+              {user.picture ? (
+                <img
+                  src={user.picture}
+                  alt={user.name}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    color: "#8d9693",
+                  }}
+                >
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </button>
+          </DropdownMenu.Trigger>
+
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              side="top"
+              align="start"
+              sideOffset={8}
+              style={{
+                backgroundColor: "#1e2020",
+                borderRadius: "9px",
+                border: "1px solid #2d302f",
+                padding: "4px",
+                zIndex: 1000,
+                minWidth: "160px",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+              }}
+            >
+              <DropdownMenu.Item
+                onSelect={() => setSettingsModalOpen(true)}
+                style={{
+                  fontSize: "14px",
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: "400",
+                  color: "#fdfdfd",
+                  backgroundColor: "transparent",
+                  padding: "8px 12px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  outline: "none",
+                  userSelect: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.backgroundColor =
+                    "#2d302f";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.backgroundColor =
+                    "transparent";
+                }}
+              >
+                <Settings size={14} />
+                Settings
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                onSelect={handleLogout}
+                style={{
+                  fontSize: "14px",
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: "400",
+                  color: "#fdfdfd",
+                  backgroundColor: "transparent",
+                  padding: "8px 12px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  outline: "none",
+                  userSelect: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.backgroundColor =
+                    "#2d302f";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.backgroundColor =
+                    "transparent";
+                }}
+              >
+                <LogOut size={14} />
+                Logout
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      </div>
     </div>
   );
 }

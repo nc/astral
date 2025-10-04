@@ -9,6 +9,7 @@ declare namespace Cloudflare {
 	interface Env {
 		SPACE: DurableObjectNamespace<import("./src/index").SpaceDurableObject>;
 		SPACE_REGISTRY: DurableObjectNamespace<import("./src/index").SpaceRegistryDurableObject>;
+		USER: DurableObjectNamespace<import("./src/index").UserDurableObject>;
 		MY_DURABLE_OBJECT: DurableObjectNamespace<import("./src/index").MyDurableObject>;
 	}
 }
@@ -16,6 +17,8 @@ interface Env extends Cloudflare.Env {
 	SERPER_API_KEY: string;
 	OPENAI_API_KEY: string;
 	ANTHROPIC_API_KEY: string;
+	GCP_OAUTH_CLIENT_ID: string;
+	GCP_OAUTH_CLIENT_SECRET: string;
 }
 
 // Begin runtime types

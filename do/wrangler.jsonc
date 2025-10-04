@@ -12,6 +12,7 @@
 			"new_sqlite_classes": [
 				"SpaceDurableObject",
 				"SpaceRegistryDurableObject",
+				"UserDurableObject",
 				"MyDurableObject"
 			],
 			"tag": "v1"
@@ -26,6 +27,10 @@
 			{
 				"class_name": "SpaceRegistryDurableObject",
 				"name": "SPACE_REGISTRY"
+			},
+			{
+				"class_name": "UserDurableObject",
+				"name": "USER"
 			},
 			{
 				"class_name": "MyDurableObject",

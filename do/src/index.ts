@@ -896,11 +896,255 @@ export class SpaceDurableObject extends DurableObject<Env> {
 	}
 }
 
+/** User Durable Object - manages user authentication and data */
+export class UserDurableObject extends DurableObject<Env> {
+	private userId: string;
+
+	constructor(ctx: DurableObjectState, env: Env) {
+		super(ctx, env);
+		this.userId = ctx.id.toString();
+		this.initializeDatabase();
+	}
+
+	private initializeDatabase(): void {
+		// Create user profile table
+		this.ctx.storage.sql.exec(`
+			CREATE TABLE IF NOT EXISTS user_profile (
+				user_id TEXT PRIMARY KEY,
+				email TEXT NOT NULL,
+				name TEXT,
+				picture TEXT,
+				created_at INTEGER NOT NULL,
+				last_login INTEGER NOT NULL
+			)
+		`);
+
+		// Create user spaces table (tracks which spaces belong to which user)
+		this.ctx.storage.sql.exec(`
+			CREATE TABLE IF NOT EXISTS user_spaces (
+				user_id TEXT NOT NULL,
+				space_id TEXT NOT NULL,
+				created_at INTEGER NOT NULL,
+				PRIMARY KEY (user_id, space_id)
+			)
+		`);
+	}
+
+	async fetch(request: Request): Promise<Response> {
+		const url = new URL(request.url);
+
+		// Handle OAuth callback
+		if (url.pathname === "/oauth/callback") {
+			return this.handleOAuthCallback(request);
+		}
+
+		// Handle WebSocket for user operations
+		const upgradeHeader = request.headers.get("Upgrade");
+		if (upgradeHeader === "websocket") {
+			const webSocketPair = new WebSocketPair();
+			const [client, server] = Object.values(webSocketPair);
+
+			this.ctx.acceptWebSocket(server);
+
+			return new Response(null, {
+				status: 101,
+				webSocket: client,
+			});
+		}
+
+		return new Response("Expected WebSocket connection or OAuth callback", { status: 400 });
+	}
+
+	private async handleOAuthCallback(request: Request): Promise<Response> {
+		const url = new URL(request.url);
+		const code = url.searchParams.get('code');
+
+		if (!code) {
+			return new Response(JSON.stringify({ error: 'No authorization code provided' }), {
+				status: 400,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		}
+
+		try {
+			// Exchange code for tokens
+			const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					code,
+					client_id: this.env.GCP_OAUTH_CLIENT_ID,
+					client_secret: this.env.GCP_OAUTH_CLIENT_SECRET,
+					redirect_uri: `${url.origin}/auth/callback`,
+					grant_type: 'authorization_code',
+				}),
+			});
+
+			if (!tokenResponse.ok) {
+				throw new Error('Failed to exchange code for tokens');
+			}
+
+			const tokens = await tokenResponse.json() as { access_token: string; id_token: string };
+
+			// Get user info
+			const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+				headers: { Authorization: `Bearer ${tokens.access_token}` },
+			});
+
+			if (!userInfoResponse.ok) {
+				throw new Error('Failed to get user info');
+			}
+
+			const userInfo = await userInfoResponse.json() as {
+				id: string;
+				email: string;
+				name: string;
+				picture: string;
+			};
+
+			// Store user profile
+			const now = Date.now();
+			this.ctx.storage.sql.exec(
+				`INSERT OR REPLACE INTO user_profile (user_id, email, name, picture, created_at, last_login)
+				 VALUES (?, ?, ?, ?, COALESCE((SELECT created_at FROM user_profile WHERE user_id = ?), ?), ?)`,
+				userInfo.id,
+				userInfo.email,
+				userInfo.name,
+				userInfo.picture,
+				userInfo.id,
+				now,
+				now
+			);
+
+			return new Response(JSON.stringify({
+				userId: userInfo.id,
+				email: userInfo.email,
+				name: userInfo.name,
+				picture: userInfo.picture,
+				accessToken: tokens.access_token,
+			}), {
+				headers: { 'Content-Type': 'application/json' },
+			});
+		} catch (error) {
+			console.error('OAuth error:', error);
+			return new Response(JSON.stringify({
+				error: error instanceof Error ? error.message : 'Authentication failed'
+			}), {
+				status: 500,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		}
+	}
+
+	async webSocketMessage(ws: WebSocket, message: ArrayBuffer | string) {
+		try {
+			const data = typeof message === "string" ? message : new TextDecoder().decode(message);
+			const request = JSON.parse(data);
+
+			let response;
+
+			try {
+				const result = await this.handleMethod(request.method, request.params);
+				response = { id: request.id, result };
+			} catch (error) {
+				response = {
+					id: request.id,
+					error: error instanceof Error ? error.message : "Unknown error",
+				};
+			}
+
+			ws.send(JSON.stringify(response));
+		} catch (error) {
+			ws.send(JSON.stringify({ error: "Invalid message format" }));
+		}
+	}
+
+	async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
+		console.log(`User WebSocket closed: code=${code}, reason=${reason}, wasClean=${wasClean}`);
+	}
+
+	async webSocketError(ws: WebSocket, error: unknown) {
+		console.error("User WebSocket error:", error);
+	}
+
+	private async handleMethod(method: string, params: any): Promise<any> {
+		switch (method) {
+			case "getUserProfile":
+				return await this.getUserProfile();
+			case "getUserSpaces":
+				return await this.getUserSpaces();
+			case "addUserSpace":
+				return await this.addUserSpace(params.spaceId);
+			case "removeUserSpace":
+				return await this.removeUserSpace(params.spaceId);
+			default:
+				throw new Error(`Unknown method: ${method}`);
+		}
+	}
+
+	async getUserProfile() {
+		const cursor = this.ctx.storage.sql.exec(
+			`SELECT * FROM user_profile WHERE user_id = ?`,
+			this.userId
+		);
+
+		const rows = [...cursor];
+		if (rows.length === 0) return null;
+
+		const row = rows[0];
+		return {
+			userId: row.user_id as string,
+			email: row.email as string,
+			name: row.name as string,
+			picture: row.picture as string,
+			createdAt: row.created_at as number,
+			lastLogin: row.last_login as number,
+		};
+	}
+
+	async getUserSpaces() {
+		const cursor = this.ctx.storage.sql.exec(
+			`SELECT space_id FROM user_spaces WHERE user_id = ? ORDER BY created_at DESC`,
+			this.userId
+		);
+
+		const spaceIds = [];
+		for (const row of cursor) {
+			spaceIds.push(row.space_id as string);
+		}
+
+		return spaceIds;
+	}
+
+	async addUserSpace(spaceId: string) {
+		const now = Date.now();
+		this.ctx.storage.sql.exec(
+			`INSERT OR IGNORE INTO user_spaces (user_id, space_id, created_at) VALUES (?, ?, ?)`,
+			this.userId,
+			spaceId,
+			now
+		);
+
+		return { success: true };
+	}
+
+	async removeUserSpace(spaceId: string) {
+		this.ctx.storage.sql.exec(
+			`DELETE FROM user_spaces WHERE user_id = ? AND space_id = ?`,
+			this.userId,
+			spaceId
+		);
+
+		return { success: true };
+	}
+}
+
 /** Space Registry Durable Object - tracks all spaces */
 export class SpaceRegistryDurableObject extends DurableObject<Env> {
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 		this.initializeDatabase();
+		this.migrateDatabase();
 	}
 
 	private initializeDatabase(): void {
@@ -911,6 +1155,32 @@ export class SpaceRegistryDurableObject extends DurableObject<Env> {
 				created_at INTEGER NOT NULL
 			)
 		`);
+	}
+
+	private migrateDatabase(): void {
+		// Migration: Add user_id column to space_registry table if it doesn't exist
+		try {
+			// Check if user_id column exists
+			const cursor = this.ctx.storage.sql.exec(`PRAGMA table_info(space_registry)`);
+			const columns = [...cursor];
+			const hasUserId = columns.some((col: any) => col.name === 'user_id');
+
+			if (!hasUserId) {
+				console.log('Running migration: Adding user_id column to space_registry table');
+
+				// Add user_id column
+				this.ctx.storage.sql.exec(`ALTER TABLE space_registry ADD COLUMN user_id TEXT`);
+
+				// Create index on user_id for faster filtering
+				this.ctx.storage.sql.exec(`
+					CREATE INDEX IF NOT EXISTS idx_space_registry_user_id ON space_registry(user_id)
+				`);
+
+				console.log('Migration completed: user_id column added');
+			}
+		} catch (error) {
+			console.error('Migration failed:', error);
+		}
 	}
 
 	async fetch(request: Request): Promise<Response> {
@@ -965,9 +1235,9 @@ export class SpaceRegistryDurableObject extends DurableObject<Env> {
 	private async handleMethod(method: string, params: any): Promise<any> {
 		switch (method) {
 			case "registerSpace":
-				return await this.registerSpace(params.spaceId, params.name);
+				return await this.registerSpace(params.spaceId, params.name, params.userId);
 			case "getSpaces":
-				return await this.getSpaces();
+				return await this.getSpaces(params.userId);
 			case "unregisterSpace":
 				return await this.unregisterSpace(params.spaceId);
 			default:
@@ -975,24 +1245,36 @@ export class SpaceRegistryDurableObject extends DurableObject<Env> {
 		}
 	}
 
-	async registerSpace(spaceId: string, name: string) {
+	async registerSpace(spaceId: string, name: string, userId?: string) {
 		const now = Date.now();
 
 		// Insert or replace space
 		this.ctx.storage.sql.exec(
-			`INSERT OR REPLACE INTO space_registry (space_id, name, created_at) VALUES (?, ?, ?)`,
+			`INSERT OR REPLACE INTO space_registry (space_id, name, created_at, user_id) VALUES (?, ?, ?, ?)`,
 			spaceId,
 			name,
-			now
+			now,
+			userId || null
 		);
 
 		return { success: true };
 	}
 
-	async getSpaces() {
-		const cursor = this.ctx.storage.sql.exec(
-			`SELECT * FROM space_registry ORDER BY created_at DESC`
-		);
+	async getSpaces(userId?: string) {
+		let cursor;
+
+		if (userId) {
+			// Filter by user_id if provided
+			cursor = this.ctx.storage.sql.exec(
+				`SELECT * FROM space_registry WHERE user_id = ? ORDER BY created_at DESC`,
+				userId
+			);
+		} else {
+			// Return all spaces if no userId (for backwards compatibility)
+			cursor = this.ctx.storage.sql.exec(
+				`SELECT * FROM space_registry ORDER BY created_at DESC`
+			);
+		}
 
 		const spaces = [];
 		for (const row of cursor) {
@@ -1013,17 +1295,6 @@ export class SpaceRegistryDurableObject extends DurableObject<Env> {
 		);
 
 		return { success: true };
-	}
-}
-
-/** Legacy Durable Object - kept for backwards compatibility */
-export class MyDurableObject extends DurableObject<Env> {
-	constructor(ctx: DurableObjectState, env: Env) {
-		super(ctx, env);
-	}
-
-	async sayHello(name: string): Promise<string> {
-		return `Hello, ${name}!`;
 	}
 }
 
@@ -1051,7 +1322,91 @@ export default {
 			return new Response(null, { headers: corsHeaders });
 		}
 
+		// ========== OAuth Routes ==========
+
+		// OAuth callback: http://localhost:8787/auth/callback?code=...
+		if (path === "/auth/callback") {
+			const code = url.searchParams.get('code');
+			if (!code) {
+				return new Response(JSON.stringify({ error: 'No authorization code provided' }), {
+					status: 400,
+					headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+				});
+			}
+
+			// Extract user ID from state parameter or create a session
+			// For now, we'll use a simple approach - exchange the code directly
+			try {
+				// Exchange code for tokens
+				const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+					body: new URLSearchParams({
+						code,
+						client_id: env.GCP_OAUTH_CLIENT_ID,
+						client_secret: env.GCP_OAUTH_CLIENT_SECRET,
+						redirect_uri: `${url.origin}/auth/callback`,
+						grant_type: 'authorization_code',
+					}).toString(),
+				});
+
+				if (!tokenResponse.ok) {
+					const error = await tokenResponse.text();
+					throw new Error(`Token exchange failed: ${error}`);
+				}
+
+				const tokens = await tokenResponse.json() as { access_token: string; id_token: string };
+
+				// Get user info
+				const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+					headers: { Authorization: `Bearer ${tokens.access_token}` },
+				});
+
+				if (!userInfoResponse.ok) {
+					throw new Error('Failed to get user info');
+				}
+
+				const userInfo = await userInfoResponse.json() as {
+					id: string;
+					email: string;
+					name: string;
+					picture: string;
+				};
+
+				// Redirect back to frontend app with user info
+				// Use frontend URL (port 5173 for Vite dev server)
+				const frontendUrl = new URL('/', 'http://localhost:5173');
+				frontendUrl.searchParams.set('userId', userInfo.id);
+				frontendUrl.searchParams.set('email', userInfo.email);
+				frontendUrl.searchParams.set('name', userInfo.name);
+				frontendUrl.searchParams.set('picture', userInfo.picture);
+
+				return new Response(null, {
+					status: 302,
+					headers: {
+						...corsHeaders,
+						'Location': frontendUrl.toString(),
+					},
+				});
+			} catch (error) {
+				console.error('OAuth error:', error);
+				return new Response(JSON.stringify({
+					error: error instanceof Error ? error.message : 'Authentication failed'
+				}), {
+					status: 500,
+					headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+				});
+			}
+		}
+
 		// ========== WebSocket Routes ==========
+
+		// WebSocket connection to user: ws://localhost:8787/user/:userId/ws
+		if (upgradeHeader === "websocket" && path.match(/^\/user\/[^/]+\/ws$/)) {
+			const userId = path.split("/")[2];
+			const stub = env.USER.get(env.USER.idFromName(userId));
+			return stub.fetch(request);
+		}
 
 		// WebSocket connection to space registry: ws://localhost:8787/registry/ws
 		if (upgradeHeader === "websocket" && path === "/registry/ws") {
@@ -1069,7 +1424,7 @@ export default {
 		}
 
 		// All other requests return 404
-		return new Response(JSON.stringify({ error: "Not found. Use WebSocket connection at /spaces/:spaceId/ws or /registry/ws" }), {
+		return new Response(JSON.stringify({ error: "Not found" }), {
 			status: 404,
 			headers: { ...corsHeaders, "Content-Type": "application/json" },
 		});

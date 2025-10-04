@@ -74,6 +74,8 @@ export interface AppState {
   emptySpaceModels: string[] // Changed to array for multi-selection
   // Default model for new chats and spaces
   defaultModel: string
+  // Current user ID (for authentication)
+  currentUserId: string | null
 }
 
 export const store = proxy<AppState>({
@@ -86,23 +88,41 @@ export const store = proxy<AppState>({
   chatHeaderHeight: 56, // Default height
   emptySpaceInput: '',
   emptySpaceModels: ['claude-sonnet-4-5-20250929'], // Default to array with one model
-  defaultModel: 'claude-sonnet-4-5-20250929'
+  defaultModel: 'claude-sonnet-4-5-20250929',
+  currentUserId: null
 })
 
 export const actions = {
   // Initialization
-  init: async (): Promise<void> => {
-    console.log('Initializing app from backend...');
-    try {
-      const registry = await getRegistryClient();
-      const rawSpaces = await registry.getSpaces();
+  init: async (userId?: string): Promise<void> => {
+    console.log('Initializing app from backend...', userId ? `for user ${userId}` : '');
 
-      // Validate spaces data
-      const spaces = BackendSpacesArraySchema.parse(rawSpaces);
-      console.log(`Loaded ${spaces.length} spaces from registry:`, spaces);
+    // Store current user ID
+    if (userId) {
+      store.currentUserId = userId;
+    }
+
+    try {
+      let spacesToLoad: Array<{ id: string; name: string; createdAt: number }> = [];
+
+      const registry = await getRegistryClient();
+
+      if (userId) {
+        // Get user's spaces from registry filtered by userId
+        const rawSpaces = await registry.getSpaces(userId);
+        const spaces = BackendSpacesArraySchema.parse(rawSpaces);
+        spacesToLoad = spaces;
+      } else {
+        // Load all spaces (for backwards compatibility / no auth mode)
+        const rawSpaces = await registry.getSpaces();
+        const spaces = BackendSpacesArraySchema.parse(rawSpaces);
+        spacesToLoad = spaces;
+      }
+
+      console.log(`Loaded ${spacesToLoad.length} spaces:`, spacesToLoad);
 
       // Load all spaces and their chats
-      for (const spaceData of spaces) {
+      for (const spaceData of spacesToLoad) {
         if (!store.spaces[spaceData.id]) {
           console.log(`Loading space: ${spaceData.name} (${spaceData.id})`);
           // Create space in local store
@@ -199,9 +219,9 @@ export const actions = {
       // Update with backend data
       space.createdAt = backendSpace.createdAt;
 
-      // Register space in registry
+      // Register space in registry with current user ID
       const registry = await getRegistryClient();
-      await registry.registerSpace(spaceId, name);
+      await registry.registerSpace(spaceId, name, store.currentUserId || undefined);
     } catch (error) {
       console.error('Failed to sync space with backend:', error);
       if (error instanceof z.ZodError) {
