@@ -484,6 +484,13 @@ export function Chat({ chat }: ChatProps) {
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
+                            strong: ({ children }) => (
+                              <strong
+                                style={{ fontWeight: "700", color: "#edecec" }}
+                              >
+                                {children}
+                              </strong>
+                            ),
                             p: ({ children }) => (
                               <p
                                 style={{
@@ -630,8 +637,8 @@ export function Chat({ chat }: ChatProps) {
                             h2: ({ children }) => (
                               <h2
                                 style={{
-                                  fontSize: "18px",
-                                  margin: "24px 0 12px 0",
+                                  fontSize: "20px",
+                                  margin: "24px 0 24px 0",
                                   fontWeight: "600",
                                   lineHeight: "24px",
                                 }}
