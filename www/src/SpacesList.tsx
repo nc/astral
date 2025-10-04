@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSnapshot } from "valtio";
-import { Eclipse, Plus, Trash2, Edit2, Settings, LogOut } from "lucide-react";
+import { Asterisk, Plus, Trash2, Edit2, Settings, LogOut } from "lucide-react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { store, actions } from "./store";
@@ -96,14 +96,14 @@ export function SpacesList({ user }: SpacesListProps) {
               width: "100%",
             }}
           >
-            <Eclipse
-              size={16}
+            <Asterisk
+              size={24}
               color="#8d9693"
               style={{
                 position: "relative",
-                top: 3,
+                top: 4,
                 left: 0,
-                margin: 4,
+                margin: 0,
               }}
             />
             <div
