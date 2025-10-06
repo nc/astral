@@ -101,26 +101,6 @@ export function Chat({ chat }: ChatProps) {
     };
   }, []);
 
-  // Smart auto-scroll: only scroll when user is near bottom
-  useEffect(() => {
-    if (isNearBottom) {
-      const behavior = isInitialLoad.current ? "auto" : "smooth";
-      messagesEndRef.current?.scrollIntoView({ behavior });
-
-      // After first scroll, mark as no longer initial load
-      if (isInitialLoad.current) {
-        isInitialLoad.current = false;
-      }
-    }
-  }, [chat.messages.length, chat.streamingMessageId, isNearBottom]);
-
-  // Additional effect to scroll during streaming (when message content updates)
-  useEffect(() => {
-    if (chat.streamingMessageId && isNearBottom) {
-      // Always smooth during streaming (never initial load during streaming)
-      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-    }
-  }, [chat.messages.map((m) => m.content).join(""), isNearBottom]);
 
   // Handle Enter key press to focus chat composer when this chat is active
   useEffect(() => {
