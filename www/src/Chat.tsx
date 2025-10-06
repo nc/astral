@@ -4,6 +4,8 @@ import remarkGfm from "remark-gfm";
 import * as ScrollArea from "@radix-ui/react-scroll-area";
 import { Split, Ellipsis, Trash2, ChevronDown } from "lucide-react";
 import { useSnapshot } from "valtio";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { actions, store } from "./store";
 import type { Chat as ChatType } from "./store";
 import { sendMessage } from "./api";
@@ -14,6 +16,25 @@ import { Dropdown, type DropdownOption } from "./components/Dropdown";
 interface ChatProps {
   chat: ChatType;
 }
+
+// Custom syntax highlighting style based on project colors
+const customStyle = {
+  ...vscDarkPlus,
+  'pre[class*="language-"]': {
+    ...vscDarkPlus['pre[class*="language-"]'],
+    background: "transparent",
+    margin: 0,
+    padding: 0,
+    fontSize: "13px",
+    lineHeight: "24px",
+  },
+  'code[class*="language-"]': {
+    ...vscDarkPlus['code[class*="language-"]'],
+    background: "transparent",
+    fontSize: "13px",
+    lineHeight: "24px",
+  },
+};
 
 export function Chat({ chat }: ChatProps) {
   console.log(`Rendering Chat: ${chat.id} - ${chat.title}`);
@@ -58,7 +79,7 @@ export function Chat({ chat }: ChatProps) {
 
     const { scrollTop, scrollHeight, clientHeight } = scrollArea;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    setIsNearBottom(distanceFromBottom <= 48);
+    setIsNearBottom(distanceFromBottom <= 200);
   };
 
   // Add scroll listener to track position
@@ -97,7 +118,7 @@ export function Chat({ chat }: ChatProps) {
   useEffect(() => {
     if (chat.streamingMessageId && isNearBottom) {
       // Always smooth during streaming (never initial load during streaming)
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
     }
   }, [chat.messages.map((m) => m.content).join(""), isNearBottom]);
 
@@ -460,7 +481,7 @@ export function Chat({ chat }: ChatProps) {
                     key={message.id}
                     style={{
                       marginBottom: "10px",
-                      maxWidth: "720px",
+                      maxWidth: "640px",
                       display: "table",
                       width: "100%",
                       padding:
@@ -494,96 +515,110 @@ export function Chat({ chat }: ChatProps) {
                             p: ({ children }) => (
                               <p
                                 style={{
-                                  margin: "0px 0px 0px 0px",
+                                  margin: "0px 0px 24px 0px",
                                 }}
                               >
                                 {children}
                               </p>
                             ),
-                            code: ({ children }) => (
-                              <code
-                                style={{
-                                  backgroundColor: "#1E2020",
-                                  padding: "0px",
-                                  borderRadius: "3px",
-                                  fontFamily: "monospace",
-                                  fontSize: "13px",
-                                  lineHeight: "24px",
-                                }}
-                              >
-                                {children}
-                              </code>
-                            ),
-                            pre: ({ children }) => (
-                              <ScrollArea.Root
-                                style={{
-                                  width: "100%",
-                                  maxWidth: "720px",
-                                  backgroundColor: "#1E2020",
-                                  borderRadius: "9px",
-                                  margin: "0px 0px 24px",
-                                }}
-                              >
-                                <ScrollArea.Viewport
+                            code: ({
+                              node,
+                              inline,
+                              className,
+                              children,
+                              ...props
+                            }) => {
+                              const match = /language-(\w+)/.exec(
+                                className || ""
+                              );
+                              const codeString = String(children).replace(
+                                /\n$/,
+                                ""
+                              );
+
+                              return !inline && match ? (
+                                <ScrollArea.Root
                                   style={{
                                     width: "100%",
-                                    height: "100%",
-                                    padding: "12px",
+                                    maxWidth: "640px",
+                                    backgroundColor: "#1E2020",
+                                    borderRadius: "9px",
+                                    margin: "0px 0px 24px",
                                   }}
                                 >
-                                  <pre
+                                  <ScrollArea.Viewport
                                     style={{
-                                      backgroundColor: "transparent",
-                                      padding: "0",
-                                      margin: "0",
-                                      fontSize: "14px",
-                                      lineHeight: "24px",
-                                      fontFamily: "monospace",
-                                      color: "#edecec",
-                                      whiteSpace: "pre",
-                                      overflow: "visible",
+                                      width: "100%",
+                                      height: "100%",
+                                      padding: "12px",
                                     }}
                                   >
-                                    {children}
-                                  </pre>
-                                </ScrollArea.Viewport>
-                                <ScrollArea.Scrollbar
-                                  orientation="horizontal"
-                                  style={{
-                                    display: "flex",
-                                    userSelect: "none",
-                                    touchAction: "none",
-                                    padding: "2px",
-                                    background: "transparent",
-                                    transition: "background 160ms ease-out",
-                                    height: "8px",
-                                  }}
-                                >
-                                  <ScrollArea.Thumb
+                                    <SyntaxHighlighter
+                                      style={customStyle}
+                                      language={match[1]}
+                                      PreTag="div"
+                                      customStyle={{
+                                        background: "transparent",
+                                        margin: 0,
+                                        padding: 0,
+                                      }}
+                                      {...props}
+                                    >
+                                      {codeString}
+                                    </SyntaxHighlighter>
+                                  </ScrollArea.Viewport>
+                                  <ScrollArea.Scrollbar
+                                    orientation="horizontal"
                                     style={{
-                                      flex: 1,
-                                      background: "#4a5568",
-                                      borderRadius: "4px",
-                                      position: "relative",
+                                      display: "flex",
+                                      userSelect: "none",
+                                      touchAction: "none",
+                                      padding: "2px",
+                                      background: "transparent",
                                       transition: "background 160ms ease-out",
+                                      height: "8px",
                                     }}
-                                    onMouseEnter={(e) => {
-                                      (
-                                        e.currentTarget as HTMLElement
-                                      ).style.background = "#5ba97d";
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      (
-                                        e.currentTarget as HTMLElement
-                                      ).style.background = "#4a5568";
-                                    }}
+                                  >
+                                    <ScrollArea.Thumb
+                                      style={{
+                                        flex: 1,
+                                        background: "#4a5568",
+                                        borderRadius: "4px",
+                                        position: "relative",
+                                        transition: "background 160ms ease-out",
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        (
+                                          e.currentTarget as HTMLElement
+                                        ).style.background = "#5ba97d";
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        (
+                                          e.currentTarget as HTMLElement
+                                        ).style.background = "#4a5568";
+                                      }}
+                                    />
+                                  </ScrollArea.Scrollbar>
+                                  <ScrollArea.Corner
+                                    style={{ background: "#1E2020" }}
                                   />
-                                </ScrollArea.Scrollbar>
-                                <ScrollArea.Corner
-                                  style={{ background: "#1E2020" }}
-                                />
-                              </ScrollArea.Root>
-                            ),
+                                </ScrollArea.Root>
+                              ) : (
+                                <code
+                                  className={className}
+                                  style={{
+                                    backgroundColor: "#1E2020",
+                                    padding: "2px 4px",
+                                    borderRadius: "3px",
+                                    fontFamily: "monospace",
+                                    fontSize: "13px",
+                                  }}
+                                  {...props}
+                                >
+                                  {children}
+                                </code>
+                              );
+                            },
                             blockquote: ({ children }) => (
                               <blockquote
                                 style={{
@@ -662,7 +697,7 @@ export function Chat({ chat }: ChatProps) {
                               <ScrollArea.Root
                                 style={{
                                   width: "100%",
-                                  maxWidth: "720px",
+                                  maxWidth: "640px",
                                   margin: "16px 0",
                                 }}
                               >
@@ -853,7 +888,7 @@ export function Chat({ chat }: ChatProps) {
             <div style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
               <div
                 style={{
-                  maxWidth: 744,
+                  maxWidth: 680,
                   width: "100%",
                   display: "table",
                   margin: "0 auto",
