@@ -31,10 +31,29 @@ export class SpaceDurableObject extends DurableObject<Env> {
 	}
 
 	/**
-	 * Handle WebSocket connections only
+	 * Handle WebSocket connections and internal HTTP requests
 	 */
 	async fetch(request: Request): Promise<Response> {
+		const url = new URL(request.url);
 		const upgradeHeader = request.headers.get("Upgrade");
+
+		// Handle internal HTTP request for shared chat lookup
+		if (url.pathname.startsWith("/shared/")) {
+			const shareId = url.pathname.split("/")[2];
+			const sharedChat = await this.getSharedChat(shareId);
+
+			if (sharedChat) {
+				return new Response(JSON.stringify(sharedChat), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				});
+			} else {
+				return new Response(JSON.stringify({ error: "Not found" }), {
+					status: 404,
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+		}
 
 		// Only accept WebSocket connections
 		if (upgradeHeader === "websocket") {
@@ -159,6 +178,48 @@ export class SpaceDurableObject extends DurableObject<Env> {
 				this.ctx.storage.sql.exec(`ALTER TABLE chats ADD COLUMN model TEXT`);
 
 				console.log('Migration completed: model column added');
+			}
+		} catch (error) {
+			console.error('Migration failed:', error);
+		}
+
+		// Migration: Create shared_chats table for publicly shared chats
+		try {
+			const cursor = this.ctx.storage.sql.exec(`
+				SELECT name FROM sqlite_master WHERE type='table' AND name='shared_chats'
+			`);
+			const tables = [...cursor];
+
+			if (tables.length === 0) {
+				console.log('Running migration: Creating shared_chats table');
+
+				this.ctx.storage.sql.exec(`
+					CREATE TABLE shared_chats (
+						share_id TEXT PRIMARY KEY,
+						space_id TEXT NOT NULL,
+						chat_id TEXT NOT NULL,
+						chat_name TEXT NOT NULL,
+						model TEXT,
+						created_at INTEGER NOT NULL,
+						FOREIGN KEY (chat_id) REFERENCES chats(id)
+					)
+				`);
+
+				console.log('Migration completed: shared_chats table created');
+			} else {
+				// Migration: Add space_id column to existing shared_chats table
+				const columnsCursor = this.ctx.storage.sql.exec(`PRAGMA table_info(shared_chats)`);
+				const columns = [...columnsCursor];
+				const hasSpaceId = columns.some((col: any) => col.name === 'space_id');
+
+				if (!hasSpaceId) {
+					console.log('Running migration: Adding space_id column to shared_chats table');
+
+					// Add space_id column with a default value (current space ID)
+					this.ctx.storage.sql.exec(`ALTER TABLE shared_chats ADD COLUMN space_id TEXT NOT NULL DEFAULT '${this.spaceId}'`);
+
+					console.log('Migration completed: space_id column added to shared_chats');
+				}
 			}
 		} catch (error) {
 			console.error('Migration failed:', error);
@@ -452,6 +513,64 @@ export class SpaceDurableObject extends DurableObject<Env> {
 
 		const rows = [...cursor];
 		return rows.length > 0 ? (rows[0].count as number) : 0;
+	}
+
+	/**
+	 * Share a chat - creates a public snapshot of the chat
+	 */
+	async shareChat(chatId: string): Promise<{ shareId: string; spaceId: string }> {
+		// Verify chat exists in this space
+		const chat = await this.getChat(chatId);
+		if (!chat) {
+			throw new Error("Chat not found");
+		}
+
+		// Generate a unique share ID
+		const shareId = crypto.randomUUID();
+
+		// Create shared chat entry
+		this.ctx.storage.sql.exec(
+			`INSERT INTO shared_chats (share_id, space_id, chat_id, chat_name, model, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			shareId,
+			this.spaceId,
+			chatId,
+			chat.name,
+			chat.model || null,
+			Date.now()
+		);
+
+		return { shareId, spaceId: this.spaceId };
+	}
+
+	/**
+	 * Get shared chat data by share ID
+	 */
+	async getSharedChat(shareId: string): Promise<any | null> {
+		// Check if this share ID exists in this space
+		const cursor = this.ctx.storage.sql.exec(
+			`SELECT share_id, space_id, chat_id, chat_name, model, created_at
+			 FROM shared_chats
+			 WHERE share_id = ? AND space_id = ?`,
+			shareId,
+			this.spaceId
+		);
+
+		const rows = [...cursor];
+		if (rows.length === 0) {
+			return null;
+		}
+
+		const shareRow = rows[0];
+
+		// Get all messages for this chat
+		const messages = await this.getMessages(shareRow.chat_id as string);
+
+		return {
+			chatName: shareRow.chat_name,
+			model: shareRow.model,
+			messages,
+			createdAt: shareRow.created_at,
+		};
 	}
 
 	// ============== Message Methods ==============
@@ -911,6 +1030,8 @@ export class SpaceDurableObject extends DurableObject<Env> {
 				return { success: true };
 			case "getChatCount":
 				return await this.getChatCount();
+			case "shareChat":
+				return await this.shareChat(params.chatId);
 
 			// Message methods
 			case "addMessage":
@@ -1237,10 +1358,44 @@ export class SpaceRegistryDurableObject extends DurableObject<Env> {
 		} catch (error) {
 			console.error('Migration failed:', error);
 		}
+
+		// Migration: Create shared_chats_lookup table
+		try {
+			const cursor = this.ctx.storage.sql.exec(`
+				SELECT name FROM sqlite_master WHERE type='table' AND name='shared_chats_lookup'
+			`);
+			const tables = [...cursor];
+
+			if (tables.length === 0) {
+				console.log('Running migration: Creating shared_chats_lookup table');
+
+				this.ctx.storage.sql.exec(`
+					CREATE TABLE shared_chats_lookup (
+						share_id TEXT PRIMARY KEY,
+						space_id TEXT NOT NULL,
+						created_at INTEGER NOT NULL
+					)
+				`);
+
+				console.log('Migration completed: shared_chats_lookup table created');
+			}
+		} catch (error) {
+			console.error('Migration failed:', error);
+		}
 	}
 
 	async fetch(request: Request): Promise<Response> {
+		const url = new URL(request.url);
 		const upgradeHeader = request.headers.get("Upgrade");
+
+		// Handle internal HTTP request to get all spaces
+		if (url.pathname === "/spaces") {
+			const spaces = await this.getAllSpaces();
+			return new Response(JSON.stringify(spaces), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			});
+		}
 
 		if (upgradeHeader === "websocket") {
 			const webSocketPair = new WebSocketPair();
@@ -1340,6 +1495,21 @@ export class SpaceRegistryDurableObject extends DurableObject<Env> {
 				id: row.space_id as string,
 				name: row.name as string,
 				createdAt: row.created_at as number,
+			});
+		}
+
+		return spaces;
+	}
+
+	async getAllSpaces() {
+		const cursor = this.ctx.storage.sql.exec(
+			`SELECT space_id FROM space_registry`
+		);
+
+		const spaces = [];
+		for (const row of cursor) {
+			spaces.push({
+				space_id: row.space_id as string,
 			});
 		}
 
@@ -1463,6 +1633,61 @@ export default {
 				}), {
 					status: 500,
 					headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+				});
+			}
+		}
+
+		// ========== Shared Chat API ==========
+
+		// Get shared chat: GET /api/share/:shareId
+		if (request.method === "GET" && path.match(/^\/api\/share\/[^/]+$/)) {
+			const shareId = path.split("/")[3];
+
+			try {
+				// We need to query all spaces to find the one with this shareId
+				// Get all spaces from registry
+				const registryStub = env.SPACE_REGISTRY.get(env.SPACE_REGISTRY.idFromName("global-registry"));
+
+				// Use a simple HTTP endpoint on registry to get spaces
+				const spacesResponse = await registryStub.fetch(new Request("http://internal/spaces"));
+
+				if (!spacesResponse.ok) {
+					throw new Error("Failed to get spaces from registry");
+				}
+
+				const spaces = await spacesResponse.json() as Array<{ space_id: string }>;
+
+				// Query each space to find the shared chat
+				for (const space of spaces) {
+					const spaceStub = env.SPACE.get(env.SPACE.idFromName(space.space_id));
+					const sharedChatResponse = await spaceStub.fetch(
+						new Request(`http://internal/shared/${shareId}`)
+					);
+
+					if (sharedChatResponse.ok) {
+						const sharedChatData = await sharedChatResponse.json();
+						return new Response(JSON.stringify(sharedChatData), {
+							status: 200,
+							headers: { ...corsHeaders, "Content-Type": "application/json" },
+						});
+					}
+				}
+
+				// Not found in any space
+				return new Response(JSON.stringify({
+					error: "Shared chat not found"
+				}), {
+					status: 404,
+					headers: { ...corsHeaders, "Content-Type": "application/json" },
+				});
+
+			} catch (error) {
+				console.error("Error fetching shared chat:", error);
+				return new Response(JSON.stringify({
+					error: error instanceof Error ? error.message : "Failed to fetch shared chat"
+				}), {
+					status: 500,
+					headers: { ...corsHeaders, "Content-Type": "application/json" },
 				});
 			}
 		}

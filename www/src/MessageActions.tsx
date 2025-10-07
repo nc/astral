@@ -3,7 +3,8 @@ import { Copy, Split, Share, RotateCcw, Check } from "lucide-react";
 import { useSnapshot } from "valtio";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { actions, store } from "./store";
-import { sendMessage } from "./api";
+import { sendMessage, shareChat } from "./api";
+import { ShareDialog } from "./ShareDialog";
 
 interface MessageActionsProps {
   messageId: string;
@@ -14,6 +15,9 @@ interface MessageActionsProps {
 
 export function MessageActions({ messageId, messageContent, chatId, isStreaming }: MessageActionsProps) {
   const [copied, setCopied] = React.useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
+  const [shareUrl, setShareUrl] = React.useState<string | null>(null);
+  const [isSharing, setIsSharing] = React.useState(false);
   const snap = useSnapshot(store);
 
   const handleCopy = async () => {
@@ -26,9 +30,26 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
     actions.branchChat(chatId);
   };
 
-  const handleShare = () => {
-    // TODO: Implement share functionality
-    console.log("Share message:", messageId);
+  const handleShare = async () => {
+    setShareDialogOpen(true);
+    setIsSharing(true);
+    setShareUrl(null);
+
+    try {
+      const spaceId = snap.activeSpaceId;
+      if (!spaceId) {
+        console.error("No active space ID");
+        setIsSharing(false);
+        return;
+      }
+
+      const url = await shareChat(spaceId, chatId);
+      setShareUrl(url);
+    } catch (error) {
+      console.error("Error sharing chat:", error);
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   const handleTryAgain = () => {
@@ -116,16 +137,23 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
   };
 
   return (
-    <Tooltip.Provider delayDuration={300}>
-      <div
-        style={{
-          display: "flex",
-          gap: "8px",
-          marginTop: "0px",
-          marginBottom: "24px",
-          opacity: 0.8,
-        }}
-      >
+    <>
+      <ShareDialog
+        open={shareDialogOpen}
+        onOpenChange={setShareDialogOpen}
+        shareUrl={shareUrl}
+        isLoading={isSharing}
+      />
+      <Tooltip.Provider delayDuration={300}>
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            marginTop: "0px",
+            marginBottom: "24px",
+            opacity: 0.8,
+          }}
+        >
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
@@ -267,5 +295,6 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
         </Tooltip.Root>
       </div>
     </Tooltip.Provider>
+    </>
   );
 }

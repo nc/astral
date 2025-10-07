@@ -5,6 +5,7 @@ import { store, actions, type Space as ISpace } from "./store";
 import { SpacesList } from "./SpacesList";
 import { Space } from "./Space";
 import { SignIn } from "./SignIn";
+import { SharedChat } from "./SharedChat";
 import "./App.css";
 
 interface UserInfo {
@@ -18,6 +19,15 @@ function App() {
   const snap = useSnapshot(store);
   const [isInitialized, setIsInitialized] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
+
+  // Check if this is a shared chat URL
+  const pathMatch = window.location.pathname.match(/^\/share\/([^/]+)$/);
+  const shareId = pathMatch ? pathMatch[1] : null;
+
+  // If viewing a shared chat, render it directly without authentication
+  if (shareId) {
+    return <SharedChat shareId={shareId} />;
+  }
 
   // Check for OAuth callback on mount
   useEffect(() => {

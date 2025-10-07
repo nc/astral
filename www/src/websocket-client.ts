@@ -234,6 +234,10 @@ export class WebSocketClient {
     return this.call('getChatCount');
   }
 
+  async shareChat(chatId: string) {
+    return this.call('shareChat', { chatId });
+  }
+
   // ========== Message Methods ==========
 
   async addMessage(chatId: string, content: string, role: 'user' | 'assistant' | 'system', metadata?: Record<string, any>) {

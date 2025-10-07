@@ -41,3 +41,18 @@ export async function sendMessage(
     throw error instanceof Error ? error : new Error('Failed to get response from AI');
   }
 }
+
+export async function shareChat(spaceId: string, chatId: string): Promise<string> {
+  try {
+    console.log(`shareChat: spaceId=${spaceId}, chatId=${chatId}`);
+    const client = await getWebSocketClient(spaceId);
+    const result = await client.shareChat(chatId);
+
+    // Return the share URL
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8787';
+    return `${window.location.origin}/share/${result.shareId}`;
+  } catch (error) {
+    console.error('Error sharing chat:', error);
+    throw error instanceof Error ? error : new Error('Failed to share chat');
+  }
+}
