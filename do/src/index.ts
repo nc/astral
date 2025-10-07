@@ -1145,6 +1145,7 @@ export class UserDurableObject extends DurableObject<Env> {
 
 		try {
 			// Exchange code for tokens
+			console.log("Token exchange,", url.origin)
 			const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
@@ -1548,6 +1549,13 @@ export default {
 		const path = url.pathname;
 		const upgradeHeader = request.headers.get("Upgrade");
 
+		console.log('[Worker] Request received:', {
+			method: request.method,
+			path: path,
+			url: url.toString(),
+			headers: Object.fromEntries(request.headers.entries())
+		});
+
 		// CORS headers
 		const corsHeaders = {
 			"Access-Control-Allow-Origin": "*",
@@ -1557,6 +1565,7 @@ export default {
 
 		// Handle CORS preflight
 		if (request.method === "OPTIONS") {
+			console.log('[Worker] Handling CORS preflight');
 			return new Response(null, { headers: corsHeaders });
 		}
 
@@ -1564,7 +1573,11 @@ export default {
 
 		// OAuth callback: http://localhost:8787/auth/callback?code=...
 		if (path === "/auth/callback") {
+			console.log('[OAuth] Callback received at /auth/callback');
+			console.log('[OAuth] env.FRONTEND_URL:', env.FRONTEND_URL);
+			console.log('[OAuth] All env keys:', Object.keys(env));
 			const code = url.searchParams.get('code');
+			console.log('[OAuth] Code present:', !!code);
 			if (!code) {
 				return new Response(JSON.stringify({ error: 'No authorization code provided' }), {
 					status: 400,
@@ -1575,6 +1588,7 @@ export default {
 			// Extract user ID from state parameter or create a session
 			// For now, we'll use a simple approach - exchange the code directly
 			try {
+				console.log('[OAuth] Starting token exchange');
 				// Exchange code for tokens
 				const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
 					method: 'POST',
@@ -1590,20 +1604,25 @@ export default {
 
 				if (!tokenResponse.ok) {
 					const error = await tokenResponse.text();
+					console.error('[OAuth] Token exchange failed:', error);
 					throw new Error(`Token exchange failed: ${error}`);
 				}
 
+				console.log('[OAuth] Token exchange successful');
 				const tokens = await tokenResponse.json() as { access_token: string; id_token: string };
 
+				console.log('[OAuth] Fetching user info');
 				// Get user info
 				const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
 					headers: { Authorization: `Bearer ${tokens.access_token}` },
 				});
 
 				if (!userInfoResponse.ok) {
+					console.error('[OAuth] Failed to get user info');
 					throw new Error('Failed to get user info');
 				}
 
+				console.log('[OAuth] User info retrieved successfully');
 				const userInfo = await userInfoResponse.json() as {
 					id: string;
 					email: string;
@@ -1611,13 +1630,25 @@ export default {
 					picture: string;
 				};
 
+				console.log('[OAuth] User:', userInfo.email);
+
 				// Redirect back to frontend app with user info
-				// Use frontend URL (port 5173 for Vite dev server)
-				const frontendUrl = new URL('/', 'http://localhost:5173');
+				console.log('[OAuth] Building redirect URL with FRONTEND_URL:', env.FRONTEND_URL);
+				console.log('[OAuth] env type:', typeof env.FRONTEND_URL);
+				console.log('[OAuth] env defined:', env.FRONTEND_URL !== undefined);
+
+				if (!env.FRONTEND_URL) {
+					console.error('[OAuth] FRONTEND_URL not defined in environment');
+					throw new Error('FRONTEND_URL environment variable is not configured');
+				}
+
+				const frontendUrl = new URL('/', env.FRONTEND_URL);
 				frontendUrl.searchParams.set('userId', userInfo.id);
 				frontendUrl.searchParams.set('email', userInfo.email);
 				frontendUrl.searchParams.set('name', userInfo.name);
 				frontendUrl.searchParams.set('picture', userInfo.picture);
+
+				console.log('[OAuth] Redirecting to:', frontendUrl.toString());
 
 				return new Response(null, {
 					status: 302,

@@ -36,9 +36,31 @@
 	"observability": {
 		"enabled": true
 	},
-	"assets": {
-		"directory": "../www/dist/",
-		"binding": "ASSETS"
+	"vars": {
+		"FRONTEND_URL": "https://astral-frontend-a7o.pages.dev"
+	},
+	"env": {
+		"production": {
+			"vars": {
+				"FRONTEND_URL": "https://astral-frontend-a7o.pages.dev",
+			},
+			"durable_objects": {
+				"bindings": [
+					{
+						"class_name": "SpaceDurableObject",
+						"name": "SPACE"
+					},
+					{
+						"class_name": "SpaceRegistryDurableObject",
+						"name": "SPACE_REGISTRY"
+					},
+					{
+						"class_name": "UserDurableObject",
+						"name": "USER"
+					}
+				]
+			}
+		}
 	}
 	/**
 	 * Smart Placement
@@ -55,7 +77,6 @@
 	 * Environment Variables
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
-	// "vars": { "MY_VARIABLE": "production_value" }
 	/**
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/

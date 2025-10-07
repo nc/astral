@@ -1,12 +1,13 @@
 import Asterisk3D from "./Asterisk3D";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8787";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GCP_OAUTH_CLIENT_ID;
 
 export function SignIn() {
   const handleSignIn = () => {
     const redirectUri = `${BACKEND_URL}/auth/callback`;
     const scope = "email profile openid";
+    console.log("Redirect uri", redirectUri);
 
     const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);
@@ -186,7 +187,7 @@ export function SignIn() {
             lineHeight: "24px",
           }}
         >
-          Privacy Policy · Support · 2025
+          Teamspace · 2025
         </div>
       </div>
     </>

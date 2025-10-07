@@ -16,6 +16,9 @@ interface UserInfo {
 }
 
 function App() {
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+  window.console.log({BACKEND_URL})
+
   const snap = useSnapshot(store);
   const [isInitialized, setIsInitialized] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
