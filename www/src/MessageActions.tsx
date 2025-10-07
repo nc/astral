@@ -14,6 +14,7 @@ interface MessageActionsProps {
 
 export function MessageActions({ messageId, messageContent, chatId, isStreaming }: MessageActionsProps) {
   const [copied, setCopied] = React.useState(false);
+  const snap = useSnapshot(store);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(messageContent);
@@ -42,6 +43,12 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
     const lastUserMessage = chat.messages[messageIndex - 1];
     if (!lastUserMessage || lastUserMessage.role !== "user") return;
 
+    // Build message history BEFORE removing messages (up to and including the last user message)
+    const messageHistory = chat.messages.slice(0, messageIndex).map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    }));
+
     // Remove messages from this assistant message onwards
     chat.messages.splice(messageIndex);
 
@@ -53,14 +60,7 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
     actions.addMessage(chatId, assistantMessage);
     actions.setStreamingMessageId(chatId, assistantMessage.id);
 
-    // Build message history (up to and including the last user message)
-    const messageHistory = chat.messages.map((msg) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
-
-    // Get space ID
-    const snap = useSnapshot(store);
+    // Get space ID from snapshot
     const spaceId = snap.activeSpaceId;
     if (!spaceId) {
       console.error("No active space ID");

@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import * as ScrollArea from "@radix-ui/react-scroll-area";
-import { Split, Ellipsis, Trash2, ChevronDown } from "lucide-react";
+import { Ellipsis, Trash2, ChevronDown } from "lucide-react";
 import { useSnapshot } from "valtio";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -207,10 +207,6 @@ export function Chat({ chat }: ChatProps) {
     actions.setInput(chat.id, value);
   };
 
-  const handleBranch = () => {
-    actions.branchChat(chat.id);
-  };
-
   const handleRemove = () => {
     try {
       actions.removeChat(chat.id);
@@ -251,17 +247,6 @@ export function Chat({ chat }: ChatProps) {
           console.log(`Clicking to activate chat: ${chat.id}`);
           actions.setActiveChat(chat.id);
         }
-      }}
-      onMouseEnter={(e) => {
-        // if (!isActive) {
-        //   (e.currentTarget as HTMLElement).style.boxShadow =
-        //     "0 0 0 1px #5ba97d";
-        // }
-      }}
-      onMouseLeave={(e) => {
-        // if (!isActive) {
-        //   (e.currentTarget as HTMLElement).style.boxShadow = "none";
-        // }
       }}
       style={{
         position: "relative",
