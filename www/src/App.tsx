@@ -90,8 +90,8 @@ function App() {
         alignItems: 'center',
         width: '100vw',
         height: '100vh',
-        backgroundColor: '#151817',
-        color: '#edecec',
+        backgroundColor: 'var(--bg-primary)',
+        color: 'var(--text-primary)',
       }}>
         <div>Loading your spaces...</div>
       </div>
@@ -121,7 +121,7 @@ function App() {
           width: "24px",
           height: "24px",
           borderRadius: "32px",
-          backgroundColor: "#151817",
+          backgroundColor: "var(--bg-primary)",
           border: "none",
           cursor: "pointer",
           display: "flex",
@@ -132,9 +132,9 @@ function App() {
         title={snap.sidebarVisible ? "Hide Sidebar" : "Show Sidebar"}
       >
         {snap.sidebarVisible ? (
-          <ChevronLeft size={14} color="#8d9693" />
+          <ChevronLeft size={14} color="var(--text-tertiary)" />
         ) : (
-          <ChevronRight size={14} color="#8d9693" />
+          <ChevronRight size={14} color="var(--text-tertiary)" />
         )}
       </button>
 
@@ -151,7 +151,7 @@ function App() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#666",
+            color: "var(--text-tertiary)",
             fontSize: "18px",
           }}
         >

@@ -42,9 +42,9 @@ export function Dropdown({
           align="end"
           sideOffset={8}
           style={{
-            backgroundColor: "#1e2020",
+            backgroundColor: "var(--bg-secondary)",
             borderRadius: "9px",
-            border: "1px solid #2d302f",
+            border: "1px solid var(--border-primary)",
             padding: "0px",
             zIndex: 1000,
             width: `${width}px`,
@@ -80,7 +80,7 @@ export function Dropdown({
                     fontSize: "14px",
                     fontFamily: "'Inter', sans-serif",
                     fontWeight: "400",
-                    color: option.disabled ? "#666" : option.color || "#fdfdfd",
+                    color: option.disabled ? "#666" : option.color || "var(--text-primary)",
                     backgroundColor: "transparent",
                     padding: "8px 12px",
                     borderRadius: "6px",
@@ -95,7 +95,7 @@ export function Dropdown({
                   onMouseEnter={(e) => {
                     if (!option.disabled) {
                       (e.currentTarget as HTMLElement).style.backgroundColor =
-                        "#2d302f";
+                        "var(--bg-hover)";
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -124,7 +124,7 @@ export function Dropdown({
                         width: "6px",
                         height: "6px",
                         borderRadius: "50%",
-                        backgroundColor: "#5ba97d",
+                        backgroundColor: "var(--accent-primary)",
                       }}
                     />
                   )}
@@ -153,7 +153,7 @@ export function Dropdown({
                   transition: "background 160ms ease-out",
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "#5ba97d";
+                  (e.currentTarget as HTMLElement).style.background = "var(--accent-primary)";
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLElement).style.background = "#4a5568";
@@ -161,7 +161,7 @@ export function Dropdown({
               />
             </ScrollArea.Scrollbar>
 
-            <ScrollArea.Corner style={{ background: "#1e2020" }} />
+            <ScrollArea.Corner style={{ background: "var(--bg-secondary)" }} />
           </ScrollArea.Root>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>

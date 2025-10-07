@@ -116,7 +116,7 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
 
   const buttonStyle = {
     backgroundColor: "transparent",
-    border: "1px solid #2d302f",
+    border: "1px solid var(--border-primary)",
     borderRadius: "6px",
     padding: "6px",
     display: "flex",
@@ -127,13 +127,13 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
   };
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
-    (e.currentTarget as HTMLElement).style.backgroundColor = "#1e2020";
-    (e.currentTarget as HTMLElement).style.borderColor = "#5ba97d";
+    (e.currentTarget as HTMLElement).style.backgroundColor = "var(--bg-secondary)";
+    (e.currentTarget as HTMLElement).style.borderColor = "var(--accent-primary)";
   };
 
   const handleMouseLeave = (e: React.MouseEvent<HTMLButtonElement>) => {
     (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
-    (e.currentTarget as HTMLElement).style.borderColor = "#2d302f";
+    (e.currentTarget as HTMLElement).style.borderColor = "var(--border-primary)";
   };
 
   return (
@@ -163,21 +163,21 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
               onMouseLeave={handleMouseLeave}
             >
               {copied ? (
-                <Check size={14} color="#5ba97d" />
+                <Check size={14} color="var(--accent-primary)" />
               ) : (
-                <Copy size={14} color="#8d9693" />
+                <Copy size={14} color="var(--text-tertiary)" />
               )}
             </button>
           </Tooltip.Trigger>
           <Tooltip.Portal>
             <Tooltip.Content
               style={{
-                backgroundColor: "#1e2020",
-                color: "#edecec",
+                backgroundColor: "var(--bg-secondary)",
+                color: "var(--text-primary)",
                 padding: "6px 10px",
                 borderRadius: "6px",
                 fontSize: "12px",
-                border: "1px solid #2d302f",
+                border: "1px solid var(--border-primary)",
                 boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
               }}
               sideOffset={5}
@@ -185,7 +185,7 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
               Copy
               <Tooltip.Arrow
                 style={{
-                  fill: "#1e2020",
+                  fill: "var(--bg-secondary)",
                 }}
               />
             </Tooltip.Content>
@@ -200,18 +200,18 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
             >
-              <Split size={14} color="#8d9693" style={{ transform: "rotate(90deg)" }} />
+              <Split size={14} color="var(--text-tertiary)" style={{ transform: "rotate(90deg)" }} />
             </button>
           </Tooltip.Trigger>
           <Tooltip.Portal>
             <Tooltip.Content
               style={{
-                backgroundColor: "#1e2020",
-                color: "#edecec",
+                backgroundColor: "var(--bg-secondary)",
+                color: "var(--text-primary)",
                 padding: "6px 10px",
                 borderRadius: "6px",
                 fontSize: "12px",
-                border: "1px solid #2d302f",
+                border: "1px solid var(--border-primary)",
                 boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
               }}
               sideOffset={5}
@@ -219,7 +219,7 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
               Branch
               <Tooltip.Arrow
                 style={{
-                  fill: "#1e2020",
+                  fill: "var(--bg-secondary)",
                 }}
               />
             </Tooltip.Content>
@@ -234,18 +234,18 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
             >
-              <Share size={14} color="#8d9693" />
+              <Share size={14} color="var(--text-tertiary)" />
             </button>
           </Tooltip.Trigger>
           <Tooltip.Portal>
             <Tooltip.Content
               style={{
-                backgroundColor: "#1e2020",
-                color: "#edecec",
+                backgroundColor: "var(--bg-secondary)",
+                color: "var(--text-primary)",
                 padding: "6px 10px",
                 borderRadius: "6px",
                 fontSize: "12px",
-                border: "1px solid #2d302f",
+                border: "1px solid var(--border-primary)",
                 boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
               }}
               sideOffset={5}
@@ -253,7 +253,7 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
               Share
               <Tooltip.Arrow
                 style={{
-                  fill: "#1e2020",
+                  fill: "var(--bg-secondary)",
                 }}
               />
             </Tooltip.Content>
@@ -268,18 +268,18 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
             >
-              <RotateCcw size={14} color="#8d9693" />
+              <RotateCcw size={14} color="var(--text-tertiary)" />
             </button>
           </Tooltip.Trigger>
           <Tooltip.Portal>
             <Tooltip.Content
               style={{
-                backgroundColor: "#1e2020",
-                color: "#edecec",
+                backgroundColor: "var(--bg-secondary)",
+                color: "var(--text-primary)",
                 padding: "6px 10px",
                 borderRadius: "6px",
                 fontSize: "12px",
-                border: "1px solid #2d302f",
+                border: "1px solid var(--border-primary)",
                 boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
               }}
               sideOffset={5}
@@ -287,7 +287,7 @@ export function MessageActions({ messageId, messageContent, chatId, isStreaming 
               Try again
               <Tooltip.Arrow
                 style={{
-                  fill: "#1e2020",
+                  fill: "var(--bg-secondary)",
                 }}
               />
             </Tooltip.Content>

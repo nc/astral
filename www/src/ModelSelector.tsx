@@ -153,7 +153,7 @@ export function ModelSelector({ chatId, selectedModel, mode = 'chat' }: ModelSel
   const trigger = (
     <div
       style={{
-        backgroundColor: "#1e2020",
+        backgroundColor: "var(--bg-secondary)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -172,7 +172,7 @@ export function ModelSelector({ chatId, selectedModel, mode = 'chat' }: ModelSel
           fontFamily: "'Inter', sans-serif",
           fontWeight: "400",
           fontSize: "14px",
-          color: "#8d9693",
+          color: "var(--text-tertiary)",
           lineHeight: "14px",
           whiteSpace: "nowrap",
         }}
@@ -189,7 +189,7 @@ export function ModelSelector({ chatId, selectedModel, mode = 'chat' }: ModelSel
         >
           <path
             d="M4 6L8 10L12 6"
-            stroke="#8d9693"
+            stroke="var(--text-tertiary)"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"

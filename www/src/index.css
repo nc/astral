@@ -1,56 +1,106 @@
 :root {
-  --bg-color: #151817;
-  --text-color: #D4D5D4;
-  --text-secondary: #8D9693;
-  --border-color: #e0e0e0;
-  --card-bg: #282B2A;
-  --input-bg: #ffffff;
-  --button-bg: #5BA97D;
-  --button-text: #ffffff;
-  --button-secondary-bg: #1E2020;
-  --button-secondary-text: #8D9693;
-}
+  /* Background colors */
+  --bg-primary: #151817;
+  --bg-secondary: #1E2020;
+  --bg-tertiary: #282B2A;
+  --bg-hover: #2a2d2c;
+  --bg-active: #2f3231;
 
-[data-theme="dark"] {
-  --bg-color: #151817;
-  --text-color: #D4D5D4;
-  --text-secondary: #8D9693;
-  --border-color: #333333;
-  --card-bg: #282B2A;
-  --input-bg: #333333;
-  --button-bg: #5BA97D;
-  --button-text: #ffffff;
+  /* Text colors */
+  --text-primary: #edecec;
+  --text-secondary: #D4D5D4;
+  --text-tertiary: #8D9693;
+  --text-muted: #6b7370;
+
+  /* Border colors */
+  --border-primary: #333333;
+  --border-secondary: #2a2d2c;
+  --border-focus: #5BA97D;
+
+  /* Accent colors */
+  --accent-primary: #5BA97D;
+  --accent-secondary: #4a8f68;
+  --accent-hover: #6cba8e;
+
+  /* Button colors */
+  --button-primary-bg: #5BA97D;
+  --button-primary-text: #ffffff;
+  --button-primary-hover: #6cba8e;
   --button-secondary-bg: #1E2020;
   --button-secondary-text: #8D9693;
+  --button-secondary-hover: #282B2A;
+
+  /* Input colors */
+  --input-bg: #1E2020;
+  --input-border: #333333;
+  --input-focus: #5BA97D;
+  --input-text: #edecec;
+  --input-placeholder: #8D9693;
+
+  /* Code block colors */
+  --code-bg: #1a1d1c;
+  --code-text: #e0e0e0;
+  --code-border: #2a2d2c;
+
+  /* Special UI colors */
+  --sidebar-bg: #151817;
+  --header-bg: #151817;
+  --modal-overlay: rgba(0, 0, 0, 0.5);
+  --scrollbar-thumb: #3a3d3c;
+  --scrollbar-track: #1E2020;
+
+  /* Status colors */
+  --success-bg: #5BA97D;
+  --success-text: #ffffff;
+  --warning-bg: #f59e0b;
+  --warning-text: #ffffff;
+  --error-bg: #ef4444;
+  --error-text: #ffffff;
 }
 
 html, body {
-  background: var(--bg-color);
-  color: var(--text-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
   margin: 0px;
   padding: 0px;
 }
 
 * {
-  border-color: var(--border-color);
+  border-color: var(--border-primary);
   box-sizing: border-box;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 input, textarea {
   background: var(--input-bg);
-  color: var(--text-color);
-  border-color: var(--border-color);
+  color: var(--input-text);
+  border-color: var(--input-border);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--input-placeholder);
+}
+
+input:focus, textarea:focus {
+  border-color: var(--input-focus);
+  outline-color: var(--input-focus);
 }
 
 button {
-  background: var(--button-bg);
-  color: var(--button-text);
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  border: none;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--button-primary-hover);
 }
 
 .card {
-  background: var(--card-bg);
+  background: var(--bg-tertiary);
 }
 
 code, pre, .code {

@@ -161,7 +161,7 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
       <DropdownMenu.Trigger asChild>
         <div
           style={{
-            backgroundColor: "#1e2020",
+            backgroundColor: "var(--bg-secondary)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -180,7 +180,7 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
               fontFamily: "'Inter', sans-serif",
               fontWeight: "400",
               fontSize: "14px",
-              color: "#8d9693",
+              color: "var(--text-tertiary)",
               lineHeight: "14px",
               whiteSpace: "nowrap",
             }}
@@ -197,7 +197,7 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
             >
               <path
                 d="M4 6L8 10L12 6"
-                stroke="#8d9693"
+                stroke="var(--text-tertiary)"
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -212,9 +212,9 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
           align="end"
           sideOffset={8}
           style={{
-            backgroundColor: "#1e2020",
+            backgroundColor: "var(--bg-secondary)",
             borderRadius: "9px",
-            border: "1px solid #2d302f",
+            border: "1px solid var(--border-primary)",
             padding: "0px",
             zIndex: 1000,
             width: "300px",
@@ -243,7 +243,7 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
                 style={{
                   fontSize: "11px",
                   fontFamily: "'Inter', sans-serif",
-                  color: "#8d9693",
+                  color: "var(--text-tertiary)",
                   padding: "8px 12px 4px",
                   fontWeight: "600",
                 }}
@@ -265,8 +265,8 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
                         fontSize: "14px",
                         fontFamily: "'Inter', sans-serif",
                         fontWeight: "400",
-                        color: "#fdfdfd",
-                        backgroundColor: isSelected ? "#2d302f" : "transparent",
+                        color: "var(--text-primary)",
+                        backgroundColor: isSelected ? "var(--bg-hover)" : "transparent",
                         padding: "8px 12px",
                         borderRadius: "6px",
                         cursor: "pointer",
@@ -279,7 +279,7 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
                       }}
                       onMouseEnter={(e) => {
                         if (!isSelected) {
-                          (e.currentTarget as HTMLElement).style.backgroundColor = "#2d302f";
+                          (e.currentTarget as HTMLElement).style.backgroundColor = "var(--bg-hover)";
                         }
                       }}
                       onMouseLeave={(e) => {
@@ -295,7 +295,7 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
                         <Check
                           size={14}
                           style={{
-                            color: "#5ba97d",
+                            color: "var(--accent-primary)",
                             flexShrink: 0,
                           }}
                         />
@@ -314,7 +314,7 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
                       fontSize: "14px",
                       fontFamily: "'Inter', sans-serif",
                       fontWeight: "400",
-                      color: "#8d9693",
+                      color: "var(--text-tertiary)",
                       backgroundColor: "transparent",
                       padding: "8px 12px",
                       borderRadius: "6px",
@@ -325,11 +325,11 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
                       alignItems: "center",
                       justifyContent: "center",
                       gap: "4px",
-                      borderTop: "1px solid #2d302f",
+                      borderTop: "1px solid var(--border-primary)",
                       marginTop: "4px",
                     }}
                     onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.backgroundColor = "#2d302f";
+                      (e.currentTarget as HTMLElement).style.backgroundColor = "var(--bg-hover)";
                     }}
                     onMouseLeave={(e) => {
                       (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
@@ -353,7 +353,7 @@ export function MultiModelSelector({ selectedModels }: MultiModelSelectorProps) 
               <ScrollArea.Thumb
                 style={{
                   flex: 1,
-                  background: "#8d9693",
+                  background: "var(--text-tertiary)",
                   borderRadius: "4px",
                   position: "relative",
                 }}

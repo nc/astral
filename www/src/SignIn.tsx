@@ -56,7 +56,7 @@ export function SignIn() {
           display: "flex",
           width: "100vw",
           height: "100vh",
-          backgroundColor: "#151817",
+          backgroundColor: "var(--bg-primary)",
           fontFamily: "Inter, system-ui, -apple-system, sans-serif",
           alignItems: "center",
           justifyContent: "center",
@@ -109,7 +109,7 @@ export function SignIn() {
             style={{
               fontSize: "14px",
               fontWeight: "600",
-              color: "#8d9693",
+              color: "var(--text-tertiary)",
               margin: "0 0 24px 0",
               lineHeight: "24px",
             }}
@@ -127,7 +127,7 @@ export function SignIn() {
               width: "200px",
               height: "36px",
               padding: "0 24px",
-              backgroundColor: "#5ba97d",
+              backgroundColor: "var(--accent-primary)",
               color: "#ffffff",
               border: "none",
               borderRadius: "9px",

@@ -73,8 +73,8 @@ export function SharedChat({ shareId }: { shareId: string }) {
           alignItems: "center",
           width: "100vw",
           height: "100vh",
-          backgroundColor: "#151817",
-          color: "#edecec",
+          backgroundColor: "var(--bg-primary)",
+          color: "var(--text-primary)",
         }}
       >
         <div>Loading shared chat...</div>
@@ -91,14 +91,14 @@ export function SharedChat({ shareId }: { shareId: string }) {
           alignItems: "center",
           width: "100vw",
           height: "100vh",
-          backgroundColor: "#151817",
-          color: "#edecec",
+          backgroundColor: "var(--bg-primary)",
+          color: "var(--text-primary)",
           flexDirection: "column",
           gap: "16px",
         }}
       >
         <div style={{ fontSize: "18px" }}>Failed to load shared chat</div>
-        <div style={{ fontSize: "14px", color: "#8d9693" }}>
+        <div style={{ fontSize: "14px", color: "var(--text-tertiary)" }}>
           {error || "This link may be invalid or expired"}
         </div>
       </div>
@@ -111,7 +111,7 @@ export function SharedChat({ shareId }: { shareId: string }) {
         display: "flex",
         width: "100vw",
         height: "100vh",
-        backgroundColor: "#151817",
+        backgroundColor: "var(--bg-primary)",
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}
     >
@@ -158,11 +158,11 @@ export function SharedChat({ shareId }: { shareId: string }) {
               {/* Model name */}
               <div
                 style={{
-                  border: "1px solid #2d302f",
+                  border: "1px solid var(--border-primary)",
                   borderRadius: "9px",
                   padding: "4px 12px",
                   fontSize: "14px",
-                  color: "#8d9693",
+                  color: "var(--text-tertiary)",
                   fontFamily: "'Inter', sans-serif",
                   fontWeight: "600",
                   lineHeight: "14px",
@@ -203,11 +203,11 @@ export function SharedChat({ shareId }: { shareId: string }) {
               </div>
               <div
                 style={{
-                  border: "1px solid #2d302f",
+                  border: "1px solid var(--border-primary)",
                   borderRadius: "9px",
                   padding: "4px 12px",
                   fontSize: "14px",
-                  color: "#8d9693",
+                  color: "var(--text-tertiary)",
                   fontFamily: "'Inter', sans-serif",
                   fontWeight: "600",
                   lineHeight: "14px",
@@ -252,13 +252,13 @@ export function SharedChat({ shareId }: { shareId: string }) {
                       borderRadius: "9px",
                       color: "#FFFFFF",
                       backgroundColor:
-                        message.role === "user" ? "#1E2020" : "transparent",
+                        message.role === "user" ? "var(--bg-secondary)" : "transparent",
                     }}
                   >
                     <div
                       style={{
                         margin: "0px 0px",
-                        color: "#edecec",
+                        color: "var(--text-primary)",
                         fontSize: "14px",
                         lineHeight: "24px",
                       }}
@@ -268,7 +268,7 @@ export function SharedChat({ shareId }: { shareId: string }) {
                           remarkPlugins={[remarkGfm]}
                           components={{
                             strong: ({ children }) => (
-                              <strong style={{ fontWeight: "700", color: "#edecec" }}>
+                              <strong style={{ fontWeight: "700", color: "var(--text-primary)" }}>
                                 {children}
                               </strong>
                             ),
@@ -284,7 +284,7 @@ export function SharedChat({ shareId }: { shareId: string }) {
                                   style={{
                                     width: "100%",
                                     maxWidth: "640px",
-                                    backgroundColor: "#1E2020",
+                                    backgroundColor: "var(--bg-secondary)",
                                     borderRadius: "9px",
                                     margin: "0px 0px 24px",
                                   }}
@@ -332,13 +332,13 @@ export function SharedChat({ shareId }: { shareId: string }) {
                                       }}
                                     />
                                   </ScrollArea.Scrollbar>
-                                  <ScrollArea.Corner style={{ background: "#1E2020" }} />
+                                  <ScrollArea.Corner style={{ background: "var(--bg-secondary)" }} />
                                 </ScrollArea.Root>
                               ) : (
                                 <code
                                   className={className}
                                   style={{
-                                    backgroundColor: "#1E2020",
+                                    backgroundColor: "var(--bg-secondary)",
                                     padding: "2px 4px",
                                     borderRadius: "3px",
                                     fontFamily: "monospace",

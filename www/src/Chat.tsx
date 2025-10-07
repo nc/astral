@@ -303,11 +303,11 @@ export function Chat({ chat }: ChatProps) {
             {chat.model && chat.messages.length > 0 && (
               <div
                 style={{
-                  border: "1px solid #2d302f",
+                  border: "1px solid var(--border-primary)",
                   borderRadius: "9px",
                   padding: "4px 12px",
                   fontSize: "14px",
-                  color: "#8d9693",
+                  color: "var(--text-tertiary)",
                   fontFamily: "'Inter', sans-serif",
                   fontWeight: "600",
                   lineHeight: "14px",
@@ -353,7 +353,7 @@ export function Chat({ chat }: ChatProps) {
               trigger={
                 <button
                   style={{
-                    backgroundColor: "#1e2020",
+                    backgroundColor: "var(--bg-secondary)",
                     border: "none",
                     borderRadius: "9px",
                     padding: "4px 12px",
@@ -365,7 +365,7 @@ export function Chat({ chat }: ChatProps) {
                     width: "38px",
                   }}
                 >
-                  <Ellipsis size={14} color="#8d9693" />
+                  <Ellipsis size={14} color="var(--text-tertiary)" />
                 </button>
               }
               options={chatMenuOptions}
@@ -422,13 +422,13 @@ export function Chat({ chat }: ChatProps) {
                       borderRadius: "9px",
                       color: "#FFFFFF",
                       backgroundColor:
-                        message.role === "user" ? "#1E2020" : "transparent",
+                        message.role === "user" ? "var(--bg-secondary)" : "transparent",
                     }}
                   >
                     <div
                       style={{
                         margin: "0px 0px",
-                        color: "#edecec",
+                        color: "var(--text-primary)",
                         fontSize: "14px",
                         lineHeight: "24px",
                       }}
@@ -440,7 +440,7 @@ export function Chat({ chat }: ChatProps) {
                           components={{
                             strong: ({ children }) => (
                               <strong
-                                style={{ fontWeight: "700", color: "#edecec" }}
+                                style={{ fontWeight: "700", color: "var(--text-primary)" }}
                               >
                                 {children}
                               </strong>
@@ -474,7 +474,7 @@ export function Chat({ chat }: ChatProps) {
                                   style={{
                                     width: "100%",
                                     maxWidth: "640px",
-                                    backgroundColor: "#1E2020",
+                                    backgroundColor: "var(--bg-secondary)",
                                     borderRadius: "9px",
                                     margin: "0px 0px 24px",
                                   }}
@@ -523,7 +523,7 @@ export function Chat({ chat }: ChatProps) {
                                       onMouseEnter={(e) => {
                                         (
                                           e.currentTarget as HTMLElement
-                                        ).style.background = "#5ba97d";
+                                        ).style.background = "var(--accent-primary)";
                                       }}
                                       onMouseLeave={(e) => {
                                         (
@@ -533,14 +533,14 @@ export function Chat({ chat }: ChatProps) {
                                     />
                                   </ScrollArea.Scrollbar>
                                   <ScrollArea.Corner
-                                    style={{ background: "#1E2020" }}
+                                    style={{ background: "var(--bg-secondary)" }}
                                   />
                                 </ScrollArea.Root>
                               ) : (
                                 <code
                                   className={className}
                                   style={{
-                                    backgroundColor: "#1E2020",
+                                    backgroundColor: "var(--bg-secondary)",
                                     padding: "2px 4px",
                                     borderRadius: "3px",
                                     fontFamily: "monospace",
@@ -677,7 +677,7 @@ export function Chat({ chat }: ChatProps) {
                             tr: ({ children }) => (
                               <tr
                                 style={{
-                                  borderBottom: "1px solid #2d302f",
+                                  borderBottom: "1px solid var(--border-primary)",
                                 }}
                               >
                                 {children}
@@ -689,8 +689,8 @@ export function Chat({ chat }: ChatProps) {
                                   padding: "4px 4px 2px",
                                   textAlign: "left",
                                   fontWeight: "600",
-                                  color: "#edecec",
-                                  borderBottom: "2px solid #2d302f",
+                                  color: "var(--text-primary)",
+                                  borderBottom: "2px solid var(--border-primary)",
                                 }}
                               >
                                 {children}
@@ -700,7 +700,7 @@ export function Chat({ chat }: ChatProps) {
                               <td
                                 style={{
                                   padding: "4px 4px 3px",
-                                  color: "#edecec",
+                                  color: "var(--text-primary)",
                                 }}
                               >
                                 {children}
@@ -772,7 +772,7 @@ export function Chat({ chat }: ChatProps) {
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLElement).style.background =
-                      "#5ba97d";
+                      "var(--accent-primary)";
                   }}
                   onMouseLeave={(e) => {
                     (e.currentTarget as HTMLElement).style.background =
@@ -794,8 +794,8 @@ export function Chat({ chat }: ChatProps) {
                 bottom: `${snap.chatComposerHeight + 16}px`, // Position above chat composer
                 left: "50%",
                 transform: "translateX(-50%)",
-                backgroundColor: "#1e2020",
-                border: "1px solid #2d302f",
+                backgroundColor: "var(--bg-secondary)",
+                border: "1px solid var(--border-primary)",
                 borderRadius: "50%",
                 width: "40px",
                 height: "40px",
@@ -809,18 +809,18 @@ export function Chat({ chat }: ChatProps) {
               }}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLElement).style.backgroundColor =
-                  "#2d302f";
+                  "var(--bg-hover)";
                 (e.currentTarget as HTMLElement).style.transform =
                   "translateX(-50%) scale(1.05)";
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLElement).style.backgroundColor =
-                  "#1e2020";
+                  "var(--bg-secondary)";
                 (e.currentTarget as HTMLElement).style.transform =
                   "translateX(-50%) scale(1)";
               }}
             >
-              <ChevronDown size={20} color="#8d9693" />
+              <ChevronDown size={20} color="var(--text-tertiary)" />
             </button>
           )}
 

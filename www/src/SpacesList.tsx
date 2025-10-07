@@ -59,7 +59,7 @@ export function SpacesList({ user }: SpacesListProps) {
       style={{
         width: "200px",
         height: "100vh",
-        backgroundColor: "#151817",
+        backgroundColor: "var(--bg-primary)",
         position: "relative",
         borderRight: "1px solid #1D2120",
       }}
@@ -98,7 +98,7 @@ export function SpacesList({ user }: SpacesListProps) {
           >
             <Asterisk
               size={24}
-              color="#8d9693"
+              color="var(--text-tertiary)"
               style={{
                 position: "relative",
                 top: 4,
@@ -127,7 +127,7 @@ export function SpacesList({ user }: SpacesListProps) {
                   fontStyle: "normal",
                   position: "relative",
                   flexShrink: "0",
-                  color: "#8d9693",
+                  color: "var(--text-tertiary)",
                   fontSize: "16px",
                 }}
               >
@@ -158,7 +158,7 @@ export function SpacesList({ user }: SpacesListProps) {
                 // color: "#8d9693",
                 fontSize: "14px",
                 width: "100%",
-                backgroundColor: "#1e2020",
+                backgroundColor: "var(--bg-secondary)",
                 border: "none",
                 cursor: "pointer",
                 textAlign: "left",
@@ -216,7 +216,7 @@ export function SpacesList({ user }: SpacesListProps) {
                   fontStyle: "normal",
                   position: "relative",
                   flexShrink: "0",
-                  color: "#8d9693",
+                  color: "var(--text-tertiary)",
                   fontSize: "12px",
                 }}
               >
@@ -280,7 +280,7 @@ export function SpacesList({ user }: SpacesListProps) {
                           fontStyle: "normal",
                           position: "relative",
                           flexShrink: "0",
-                          color: "#fdfdfd",
+                          color: "var(--text-primary)",
                           fontSize: "14px",
                           whiteSpace: "nowrap",
                         }}
@@ -304,9 +304,9 @@ export function SpacesList({ user }: SpacesListProps) {
                   <ContextMenu.Portal>
                     <ContextMenu.Content
                       style={{
-                        backgroundColor: "#1e2020",
+                        backgroundColor: "var(--bg-secondary)",
                         borderRadius: "9px",
-                        border: "1px solid #2d302f",
+                        border: "1px solid var(--border-primary)",
                         padding: "4px",
                         zIndex: 1000,
                         minWidth: "160px",
@@ -319,7 +319,7 @@ export function SpacesList({ user }: SpacesListProps) {
                           fontSize: "14px",
                           fontFamily: "'Inter', sans-serif",
                           fontWeight: "400",
-                          color: "#fdfdfd",
+                          color: "var(--text-primary)",
                           backgroundColor: "transparent",
                           padding: "8px 12px",
                           borderRadius: "6px",
@@ -333,7 +333,7 @@ export function SpacesList({ user }: SpacesListProps) {
                         onMouseEnter={(e) => {
                           (
                             e.currentTarget as HTMLElement
-                          ).style.backgroundColor = "#2d302f";
+                          ).style.backgroundColor = "var(--bg-hover)";
                         }}
                         onMouseLeave={(e) => {
                           (
@@ -351,7 +351,7 @@ export function SpacesList({ user }: SpacesListProps) {
                           fontFamily: "'Inter', sans-serif",
                           fontWeight: "400",
                           backgroundColor: "transparent",
-                          color: "#fdfdfd",
+                          color: "var(--text-primary)",
 
                           padding: "8px 12px",
                           borderRadius: "6px",
@@ -364,7 +364,7 @@ export function SpacesList({ user }: SpacesListProps) {
                         onMouseEnter={(e) => {
                           (
                             e.currentTarget as HTMLElement
-                          ).style.backgroundColor = "#2d302f";
+                          ).style.backgroundColor = "var(--bg-hover)";
                         }}
                         onMouseLeave={(e) => {
                           (
@@ -419,7 +419,7 @@ export function SpacesList({ user }: SpacesListProps) {
                 padding: 0,
                 cursor: "pointer",
                 overflow: "hidden",
-                backgroundColor: "#2d302f",
+                backgroundColor: "var(--bg-hover)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -446,7 +446,7 @@ export function SpacesList({ user }: SpacesListProps) {
                     justifyContent: "center",
                     fontSize: "12px",
                     fontWeight: "600",
-                    color: "#8d9693",
+                    color: "var(--text-tertiary)",
                   }}
                 >
                   {user.name.charAt(0).toUpperCase()}
@@ -461,9 +461,9 @@ export function SpacesList({ user }: SpacesListProps) {
               align="start"
               sideOffset={8}
               style={{
-                backgroundColor: "#1e2020",
+                backgroundColor: "var(--bg-secondary)",
                 borderRadius: "9px",
-                border: "1px solid #2d302f",
+                border: "1px solid var(--border-primary)",
                 padding: "4px",
                 zIndex: 1000,
                 minWidth: "160px",
@@ -476,7 +476,7 @@ export function SpacesList({ user }: SpacesListProps) {
                   fontSize: "14px",
                   fontFamily: "'Inter', sans-serif",
                   fontWeight: "400",
-                  color: "#fdfdfd",
+                  color: "var(--text-primary)",
                   backgroundColor: "transparent",
                   padding: "8px 12px",
                   borderRadius: "6px",
@@ -489,7 +489,7 @@ export function SpacesList({ user }: SpacesListProps) {
                 }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLElement).style.backgroundColor =
-                    "#2d302f";
+                    "var(--bg-hover)";
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLElement).style.backgroundColor =
@@ -505,7 +505,7 @@ export function SpacesList({ user }: SpacesListProps) {
                   fontSize: "14px",
                   fontFamily: "'Inter', sans-serif",
                   fontWeight: "400",
-                  color: "#fdfdfd",
+                  color: "var(--text-primary)",
                   backgroundColor: "transparent",
                   padding: "8px 12px",
                   borderRadius: "6px",
@@ -518,7 +518,7 @@ export function SpacesList({ user }: SpacesListProps) {
                 }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLElement).style.backgroundColor =
-                    "#2d302f";
+                    "var(--bg-hover)";
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLElement).style.backgroundColor =

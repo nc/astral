@@ -27,7 +27,7 @@ export function ShareDialog({ open, onOpenChange, shareUrl, isLoading }: ShareDi
           style={{
             position: "fixed",
             inset: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            backgroundColor: "var(--modal-overlay)",
             zIndex: 1000,
           }}
         />
@@ -37,12 +37,12 @@ export function ShareDialog({ open, onOpenChange, shareUrl, isLoading }: ShareDi
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            backgroundColor: "#1a1d1d",
+            backgroundColor: "var(--bg-primary)",
             borderRadius: "12px",
             padding: "24px",
             width: "90vw",
             maxWidth: "500px",
-            border: "1px solid #2d302f",
+            border: "1px solid var(--border-primary)",
             zIndex: 1001,
             boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
           }}
@@ -52,7 +52,7 @@ export function ShareDialog({ open, onOpenChange, shareUrl, isLoading }: ShareDi
               margin: 0,
               fontSize: "18px",
               fontWeight: 600,
-              color: "#edecec",
+              color: "var(--text-primary)",
               marginBottom: "16px",
               fontFamily: "'Inter', sans-serif",
             }}
@@ -64,7 +64,7 @@ export function ShareDialog({ open, onOpenChange, shareUrl, isLoading }: ShareDi
             style={{
               margin: 0,
               fontSize: "14px",
-              color: "#8d9693",
+              color: "var(--text-tertiary)",
               marginBottom: "20px",
               fontFamily: "'Inter', sans-serif",
               lineHeight: "20px",
@@ -78,7 +78,7 @@ export function ShareDialog({ open, onOpenChange, shareUrl, isLoading }: ShareDi
               style={{
                 padding: "40px",
                 textAlign: "center",
-                color: "#8d9693",
+                color: "var(--text-tertiary)",
                 fontSize: "14px",
               }}
             >
@@ -99,11 +99,11 @@ export function ShareDialog({ open, onOpenChange, shareUrl, isLoading }: ShareDi
                   readOnly
                   style={{
                     flex: 1,
-                    backgroundColor: "#1e2020",
-                    border: "1px solid #2d302f",
+                    backgroundColor: "var(--bg-secondary)",
+                    border: "1px solid var(--border-primary)",
                     borderRadius: "6px",
                     padding: "10px 12px",
-                    color: "#edecec",
+                    color: "var(--text-primary)",
                     fontSize: "14px",
                     fontFamily: "'Inter', sans-serif",
                     outline: "none",
@@ -113,15 +113,15 @@ export function ShareDialog({ open, onOpenChange, shareUrl, isLoading }: ShareDi
                 <button
                   onClick={handleCopy}
                   style={{
-                    backgroundColor: copied ? "#5ba97d" : "#1e2020",
-                    border: "1px solid #2d302f",
+                    backgroundColor: copied ? "var(--accent-primary)" : "var(--bg-secondary)",
+                    border: "1px solid var(--border-primary)",
                     borderRadius: "6px",
                     padding: "10px 16px",
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
                     cursor: "pointer",
-                    color: copied ? "#ffffff" : "#edecec",
+                    color: copied ? "#ffffff" : "var(--text-primary)",
                     fontSize: "14px",
                     fontWeight: 600,
                     fontFamily: "'Inter', sans-serif",
@@ -130,12 +130,12 @@ export function ShareDialog({ open, onOpenChange, shareUrl, isLoading }: ShareDi
                   }}
                   onMouseEnter={(e) => {
                     if (!copied) {
-                      (e.currentTarget as HTMLElement).style.backgroundColor = "#2d302f";
+                      (e.currentTarget as HTMLElement).style.backgroundColor = "var(--bg-hover)";
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!copied) {
-                      (e.currentTarget as HTMLElement).style.backgroundColor = "#1e2020";
+                      (e.currentTarget as HTMLElement).style.backgroundColor = "var(--bg-secondary)";
                     }
                   }}
                 >
@@ -183,13 +183,13 @@ export function ShareDialog({ open, onOpenChange, shareUrl, isLoading }: ShareDi
                 transition: "background-color 0.2s ease",
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.backgroundColor = "#2d302f";
+                (e.currentTarget as HTMLElement).style.backgroundColor = "var(--bg-hover)";
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
               }}
             >
-              <X size={20} color="#8d9693" />
+              <X size={20} color="var(--text-tertiary)" />
             </button>
           </Dialog.Close>
         </Dialog.Content>

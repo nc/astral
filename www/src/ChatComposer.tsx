@@ -249,9 +249,9 @@ export const ChatComposer = forwardRef<ChatComposerRef, ChatComposerProps>(
           style={{
             position: "relative",
             width: "100%",
-            backgroundColor: "rgb(30, 32, 32)",
+            backgroundColor: "var(--bg-secondary)",
             borderRadius: 9,
-            border: isFocused ? "1px solid #5ba97d" : "1px solid transparent",
+            border: isFocused ? "1px solid var(--accent-primary)" : "1px solid transparent",
             transition: "border-color 0.2s ease",
             cursor: "text",
             boxShadow: "0 -1px 3px rgba(0, 0, 0, 0.2)",
@@ -279,7 +279,7 @@ export const ChatComposer = forwardRef<ChatComposerRef, ChatComposerProps>(
                         borderRadius: "0",
                         boxSizing: "border-box",
                         fontSize: "14px",
-                        color: isFocused ? "#ffffff" : "#8d9693",
+                        color: isFocused ? "#ffffff" : "var(--text-tertiary)",
                         outline: "none",
                         minHeight: "48px",
                         resize: "none",
@@ -298,7 +298,7 @@ export const ChatComposer = forwardRef<ChatComposerRef, ChatComposerProps>(
                         top: "0",
                         padding: 12,
                         left: "0",
-                        color: "#8d9693",
+                        color: "var(--text-tertiary)",
                         fontSize: "14px",
                         fontFamily: "'Inter', sans-serif",
                         fontWeight: "400",
@@ -348,7 +348,7 @@ export const ChatComposer = forwardRef<ChatComposerRef, ChatComposerProps>(
                 onClick={handleSubmit}
                 disabled={isLoading || !input.trim() || !selectedModel}
                 style={{
-                  backgroundColor: "#5ba97d",
+                  backgroundColor: "var(--accent-primary)",
                   boxSizing: "border-box",
                   display: "flex",
                   gap: "12px",

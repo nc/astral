@@ -91,6 +91,8 @@ export interface AppState {
   defaultModel: string
   // Current user ID (for authentication)
   currentUserId: string | null
+  // Theme
+  theme: string
 }
 
 export const store = proxy<AppState>({
@@ -104,7 +106,8 @@ export const store = proxy<AppState>({
   emptySpaceInput: '',
   emptySpaceModels: ['claude-sonnet-4-5-20250929'], // Default to array with one model
   defaultModel: 'claude-sonnet-4-5-20250929',
-  currentUserId: null
+  currentUserId: null,
+  theme: localStorage.getItem('theme') || 'astral-dark'
 })
 
 export const actions = {
@@ -711,5 +714,15 @@ export const actions = {
 
   getActiveChat: (): Chat | undefined => {
     return actions.findChat(store.activeChatId || '')
+  },
+
+  // Theme actions
+  setTheme: (theme: string) => {
+    store.theme = theme
+    localStorage.setItem('theme', theme)
+  },
+
+  getTheme: (): string => {
+    return store.theme
   }
 }
