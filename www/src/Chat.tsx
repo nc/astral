@@ -12,6 +12,7 @@ import { sendMessage } from "./api";
 import { ChatEmptyState } from "./ChatEmptyState";
 import { ChatComposer, type ChatComposerRef } from "./ChatComposer";
 import { Dropdown, type DropdownOption } from "./components/Dropdown";
+import { MessageActions } from "./MessageActions";
 
 interface ChatProps {
   chat: ChatType;
@@ -45,7 +46,6 @@ export function Chat({ chat }: ChatProps) {
   const chatComposerRef = useRef<ChatComposerRef>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = React.useState(true);
-  const isInitialLoad = useRef(true);
   const snap = useSnapshot(store);
   const isActive = chat.id === snap.activeChatId;
 
@@ -363,39 +363,6 @@ export function Chat({ chat }: ChatProps) {
               </div>
             )}
 
-            {/* Branch button */}
-            <button
-              onClick={handleBranch}
-              style={{
-                backgroundColor: "#1e2020",
-                border: "none",
-                borderRadius: "9px",
-                padding: "4px 12px",
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-                cursor: "pointer",
-                height: "24px",
-              }}
-            >
-              <Split
-                size={14}
-                color="#8d9693"
-                style={{ transform: "rotate(90deg)" }}
-              />
-              <span
-                style={{
-                  color: "#8d9693",
-                  fontSize: "14px",
-                  fontFamily: "'Inter', sans-serif",
-                  fontWeight: "600",
-                  lineHeight: "14px",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Branch
-              </span>
-            </button>
             {/* Chat menu dropdown */}
             <Dropdown
               trigger={
@@ -452,7 +419,7 @@ export function Chat({ chat }: ChatProps) {
                 style={{
                   width: "100%",
                   height: "100%",
-                  padding: "8px",
+                  padding: "24px 8px",
                   // paddingRight: "0px", // Add space for scrollbar,
                 }}
               >
@@ -465,8 +432,8 @@ export function Chat({ chat }: ChatProps) {
                       display: "table",
                       width: "100%",
                       padding:
-                        message.role === "user" ? "12px 12px" : "8px 8px",
-                      margin: message.role === "user" ? "0px auto" : "0px auto",
+                        message.role === "user" ? "12px 12px" : "0px 8px",
+                      margin: message.role === "user" ? "0px auto 12px" : "0px auto",
                       borderRadius: "9px",
                       color: "#FFFFFF",
                       backgroundColor:
@@ -482,6 +449,7 @@ export function Chat({ chat }: ChatProps) {
                       }}
                     >
                       {message.role === "assistant" ? (
+                        <>
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
@@ -757,8 +725,15 @@ export function Chat({ chat }: ChatProps) {
                         >
                           {message.content}
                         </ReactMarkdown>
+                        <MessageActions
+                          messageId={message.id}
+                          messageContent={message.content}
+                          chatId={chat.id}
+                          isStreaming={chat.streamingMessageId === message.id}
+                        />
+                        </>
                       ) : (
-                        <p style={{ margin: "0" }}>{message.content}</p>
+                        <p style={{ margin: "0px" }}>{message.content}</p>
                       )}
                       {chat.streamingMessageId === message.id && (
                         <span
