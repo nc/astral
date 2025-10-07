@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import * as ScrollArea from "@radix-ui/react-scroll-area";
@@ -275,11 +275,11 @@ export function SharedChat({ shareId }: { shareId: string }) {
                             p: ({ children }) => (
                               <p style={{ margin: "0px 0px 24px 0px" }}>{children}</p>
                             ),
-                            code: ({ node, inline, className, children, ...props }) => {
+                            code: ({ node, className, children, ...props }) => {
                               const match = /language-(\w+)/.exec(className || "");
                               const codeString = String(children).replace(/\n$/, "");
 
-                              return !inline && match ? (
+                              return match ? (
                                 <ScrollArea.Root
                                   style={{
                                     width: "100%",
@@ -297,15 +297,14 @@ export function SharedChat({ shareId }: { shareId: string }) {
                                     }}
                                   >
                                     <SyntaxHighlighter
-                                      style={customStyle}
                                       language={match[1]}
                                       PreTag="div"
                                       customStyle={{
                                         background: "transparent",
                                         margin: 0,
                                         padding: 0,
+                                        ...customStyle
                                       }}
-                                      {...props}
                                     >
                                       {codeString}
                                     </SyntaxHighlighter>

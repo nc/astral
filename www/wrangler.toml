@@ -1,0 +1,11 @@
+name = "astral-frontend"
+compatibility_date = "2025-09-27"
+pages_build_output_dir = "dist"
+
+# Environment variables for production
+[env.production.vars]
+VITE_BACKEND_URL = "https://astral-worker.teamspace.workers.dev"
+
+# Environment variables for preview
+[env.preview.vars]
+VITE_BACKEND_URL = "https://astral-worker.teamspace.workers.dev"

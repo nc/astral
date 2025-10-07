@@ -145,7 +145,6 @@ export class WebSocketClient {
       }
 
       const id = generateMessageId();
-      let hasStarted = false;
       let timeoutId: NodeJS.Timeout;
 
       // Function to reset the timeout on each activity
@@ -169,7 +168,6 @@ export class WebSocketClient {
         }
 
         if (response.type === 'start') {
-          hasStarted = true;
           resetTimeout(); // Reset timeout when stream starts
         } else if (response.type === 'chunk') {
           if (response.data) {

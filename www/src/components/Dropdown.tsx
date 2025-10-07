@@ -26,7 +26,6 @@ export function Dropdown({
   options,
   value,
   onValueChange,
-  placeholder = "Select option...",
   disabled = false,
   maxHeight = 200,
   width = 200,

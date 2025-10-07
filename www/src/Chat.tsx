@@ -19,22 +19,22 @@ interface ChatProps {
 }
 
 // Custom syntax highlighting style based on project colors
-const customStyle = {
+const customStyle: React.CSSProperties = {
   ...vscDarkPlus,
-  'pre[class*="language-"]': {
-    ...vscDarkPlus['pre[class*="language-"]'],
-    background: "transparent",
-    margin: 0,
-    padding: 0,
-    fontSize: "13px",
-    lineHeight: "24px",
-  },
-  'code[class*="language-"]': {
-    ...vscDarkPlus['code[class*="language-"]'],
-    background: "transparent",
-    fontSize: "13px",
-    lineHeight: "24px",
-  },
+  // 'pre[class*="language-"]': {
+  //   ...vscDarkPlus['pre[class*="language-"]'],
+  //   background: "transparent",
+  //   margin: 0,
+  //   padding: 0,
+  //   fontSize: "13px",
+  //   lineHeight: "24px",
+  // },
+  // 'code[class*="language-"]': {
+  //   ...vscDarkPlus['code[class*="language-"]'],
+  //   background: "transparent",
+  //   fontSize: "13px",
+  //   lineHeight: "24px",
+  // },
 };
 
 export function Chat({ chat }: ChatProps) {
@@ -456,7 +456,6 @@ export function Chat({ chat }: ChatProps) {
                             ),
                             code: ({
                               node,
-                              inline,
                               className,
                               children,
                               ...props
@@ -469,7 +468,7 @@ export function Chat({ chat }: ChatProps) {
                                 ""
                               );
 
-                              return !inline && match ? (
+                              return match ? (
                                 <ScrollArea.Root
                                   style={{
                                     width: "100%",
@@ -487,15 +486,14 @@ export function Chat({ chat }: ChatProps) {
                                     }}
                                   >
                                     <SyntaxHighlighter
-                                      style={customStyle}
                                       language={match[1]}
                                       PreTag="div"
                                       customStyle={{
                                         background: "transparent",
                                         margin: 0,
                                         padding: 0,
+                                        ...customStyle
                                       }}
-                                      {...props}
                                     >
                                       {codeString}
                                     </SyntaxHighlighter>

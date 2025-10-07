@@ -5,7 +5,7 @@ import { Check } from "lucide-react";
 import { actions } from "../store";
 
 interface MultiModelSelectorProps {
-  selectedModels: string[];
+  selectedModels: readonly string[];
 }
 
 const FEATURED_MODELS = [

@@ -49,7 +49,6 @@ export async function shareChat(spaceId: string, chatId: string): Promise<string
     const result = await client.shareChat(chatId);
 
     // Return the share URL
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8787';
     return `${window.location.origin}/share/${result.shareId}`;
   } catch (error) {
     console.error('Error sharing chat:', error);
