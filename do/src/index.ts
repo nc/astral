@@ -224,6 +224,28 @@ export class SpaceDurableObject extends DurableObject<Env> {
 		} catch (error) {
 			console.error('Migration failed:', error);
 		}
+
+		// Migration: Add tool_calls and tool_results columns to messages table
+		try {
+			const cursor = this.ctx.storage.sql.exec(`PRAGMA table_info(messages)`);
+			const columns = [...cursor];
+			const hasToolCalls = columns.some((col: any) => col.name === 'tool_calls');
+			const hasToolResults = columns.some((col: any) => col.name === 'tool_results');
+
+			if (!hasToolCalls) {
+				console.log('Running migration: Adding tool_calls column to messages table');
+				this.ctx.storage.sql.exec(`ALTER TABLE messages ADD COLUMN tool_calls TEXT`);
+				console.log('Migration completed: tool_calls column added');
+			}
+
+			if (!hasToolResults) {
+				console.log('Running migration: Adding tool_results column to messages table');
+				this.ctx.storage.sql.exec(`ALTER TABLE messages ADD COLUMN tool_results TEXT`);
+				console.log('Migration completed: tool_results column added');
+			}
+		} catch (error) {
+			console.error('Migration failed:', error);
+		}
 	}
 
 	/**
@@ -578,18 +600,27 @@ export class SpaceDurableObject extends DurableObject<Env> {
 	/**
 	 * Add a message to a chat
 	 */
-	async addMessage(chatId: string, content: string, role: "user" | "assistant" | "system", metadata?: Record<string, any>): Promise<ChatMessage> {
+	async addMessage(
+		chatId: string,
+		content: string,
+		role: "user" | "assistant" | "system",
+		metadata?: Record<string, any>,
+		toolCall?: {toolName: string; args: Record<string, any>},
+		toolResult?: {toolName: string; result: any}
+	): Promise<ChatMessage> {
 		const messageId = crypto.randomUUID();
 		const timestamp = Date.now();
 
 		this.ctx.storage.sql.exec(
-			`INSERT INTO messages (id, chat_id, content, role, timestamp, metadata) VALUES (?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO messages (id, chat_id, content, role, timestamp, metadata, tool_calls, tool_results) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			messageId,
 			chatId,
 			content,
 			role,
 			timestamp,
-			metadata ? JSON.stringify(metadata) : null
+			metadata ? JSON.stringify(metadata) : null,
+			toolCall ? JSON.stringify(toolCall) : null,
+			toolResult ? JSON.stringify(toolResult) : null
 		);
 
 		// Update chat's updated_at timestamp
@@ -606,6 +637,8 @@ export class SpaceDurableObject extends DurableObject<Env> {
 			role,
 			timestamp,
 			metadata,
+			toolCall,
+			toolResult,
 		};
 	}
 
@@ -625,6 +658,11 @@ export class SpaceDurableObject extends DurableObject<Env> {
 		const messages: ChatMessage[] = [];
 
 		for (const row of cursor) {
+			const toolCall = row.tool_calls ? JSON.parse(row.tool_calls as string) : undefined;
+			const toolResult = row.tool_results ? JSON.parse(row.tool_results as string) : undefined;
+
+			console.log('📖 [BACKEND] Loading message:', row.id, 'toolCall:', toolCall, 'toolResult:', toolResult);
+
 			messages.push({
 				id: row.id as string,
 				chatId: row.chat_id as string,
@@ -632,6 +670,8 @@ export class SpaceDurableObject extends DurableObject<Env> {
 				role: row.role as "user" | "assistant" | "system",
 				timestamp: row.timestamp as number,
 				metadata: row.metadata ? JSON.parse(row.metadata as string) : undefined,
+				toolCall,
+				toolResult,
 			});
 		}
 
@@ -661,6 +701,8 @@ export class SpaceDurableObject extends DurableObject<Env> {
 			role: row.role as "user" | "assistant" | "system",
 			timestamp: row.timestamp as number,
 			metadata: row.metadata ? JSON.parse(row.metadata as string) : undefined,
+			toolCall: row.tool_calls ? JSON.parse(row.tool_calls as string) : undefined,
+			toolResult: row.tool_results ? JSON.parse(row.tool_results as string) : undefined,
 		};
 	}
 
@@ -755,7 +797,7 @@ export class SpaceDurableObject extends DurableObject<Env> {
 	 */
 	private async handleStreamChat(ws: WebSocket, request: WebSocketMessage) {
 		try {
-			const { messages, model } = request.params;
+			const { messages, model, chatId } = request.params;
 
 			if (!messages || !Array.isArray(messages) || messages.length === 0) {
 				ws.send(JSON.stringify({
@@ -934,6 +976,7 @@ export class SpaceDurableObject extends DurableObject<Env> {
 				const stream = agent.stream({ messages });
 				let lastChunkTime = Date.now();
 				let keepAliveInterval: NodeJS.Timeout | null = null;
+				let currentMessageStarted = false;
 
 				// Set up keep-alive to prevent WebSocket timeout during slow streaming
 				keepAliveInterval = setInterval(() => {
@@ -947,12 +990,128 @@ export class SpaceDurableObject extends DurableObject<Env> {
 				}, 5000); // Check every 5 seconds
 
 				try {
-					for await (const chunk of stream.textStream) {
+					// Track current tool call and result (one at a time)
+					let currentToolCall: {toolName: string; args: any} | null = null;
+
+					// Listen to full event stream to detect tool calls
+					for await (const part of stream.fullStream) {
 						lastChunkTime = Date.now();
+
+						if (part.type === 'text-delta') {
+							// Start new message if needed
+							if (!currentMessageStarted) {
+								ws.send(JSON.stringify({
+									id: request.id,
+									type: 'message-start',
+								}));
+								currentMessageStarted = true;
+							}
+							// Stream text chunk
+							ws.send(JSON.stringify({
+								id: request.id,
+								type: 'chunk',
+								data: part.text,
+							}));
+						} else if (part.type === 'tool-call') {
+							// End current message before tool call
+							if (currentMessageStarted) {
+								ws.send(JSON.stringify({
+									id: request.id,
+									type: 'message-end',
+								}));
+								currentMessageStarted = false;
+							}
+
+							console.log('🔧 [BACKEND] Tool call detected:', part.toolName, 'with input:', part.input);
+
+							// Store current tool call (use 'input' not 'args')
+							currentToolCall = {
+								toolName: part.toolName,
+								args: part.input as any,
+							};
+
+							console.log('🔧 [BACKEND] currentToolCall after creation:', JSON.stringify(currentToolCall, null, 2));
+
+							// Send tool call info to client
+							ws.send(JSON.stringify({
+								id: request.id,
+								type: 'tool-call',
+								toolName: part.toolName,
+								args: part.input,
+							}));
+
+							// Create assistant message with tool call immediately
+							if (chatId && currentToolCall) {
+								console.log('💾 [BACKEND] About to create tool call message with:', currentToolCall);
+
+								const toolCallMsg = await this.addMessage(
+									chatId,
+									'', // Empty content for tool call messages
+									'assistant',
+									undefined,
+									currentToolCall,
+									undefined
+								);
+
+								console.log('💾 [BACKEND] Tool call message created:', toolCallMsg.id, 'toolCall in response:', toolCallMsg.toolCall);
+
+								// Send the created message to client
+								ws.send(JSON.stringify({
+									id: request.id,
+									type: 'tool-call-message',
+									message: toolCallMsg,
+								}));
+							}
+						} else if (part.type === 'tool-result') {
+							console.log('✅ [BACKEND] Tool result received:', part.toolName, 'with output:', part.output);
+
+							// Store tool result (use 'output' not 'result')
+							const toolResult = {
+								toolName: part.toolName,
+								result: part.output,
+							};
+
+							console.log('✅ [BACKEND] toolResult after creation:', JSON.stringify(toolResult, null, 2));
+
+							// Send tool result to client
+							ws.send(JSON.stringify({
+								id: request.id,
+								type: 'tool-result',
+								toolName: part.toolName,
+								result: part.output,
+							}));
+
+							// Create user message with tool result immediately
+							if (chatId) {
+								const toolResultMsg = await this.addMessage(
+									chatId,
+									'', // Empty content for tool result messages
+									'user',
+									undefined,
+									undefined,
+									toolResult
+								);
+
+								console.log('💾 [BACKEND] Tool result message created:', toolResultMsg.id);
+
+								// Send the created message to client
+								ws.send(JSON.stringify({
+									id: request.id,
+									type: 'tool-result-message',
+									message: toolResultMsg,
+								}));
+							}
+
+							// Clear current tool call
+							currentToolCall = null;
+						}
+					}
+
+					// End final message if one was started
+					if (currentMessageStarted) {
 						ws.send(JSON.stringify({
 							id: request.id,
-							type: 'chunk',
-							data: chunk,
+							type: 'message-end',
 						}));
 					}
 				} finally {

@@ -99,6 +99,7 @@ export function EmptySpaceState({ spaceId }: EmptySpaceStateProps) {
         let generatedTitle = "";
 
         await titleClient.streamChat(
+          "temp-chat-for-title", // temporary chat ID for title generation
           [
             {
               role: "user",
@@ -137,6 +138,9 @@ export function EmptySpaceState({ spaceId }: EmptySpaceStateProps) {
 
       console.log(`Sending message to ${chatInfo.model}:`, messageHistory);
 
+      // Track current streaming message for this chat
+      let currentMessageId = chatInfo.assistantMessage.id;
+
       // Start generation for this chat (don't await - let them run in parallel)
       sendMessage(
         spaceId,
@@ -146,9 +150,44 @@ export function EmptySpaceState({ spaceId }: EmptySpaceStateProps) {
         (chunk: string) => {
           actions.appendToMessage(
             chatInfo.chatId,
-            chatInfo.assistantMessage.id,
+            currentMessageId,
             chunk
           );
+        },
+        () => {
+          // On message start - create new assistant message
+          const newAssistantMessage = actions.createMessage("assistant", "");
+          actions.addMessage(chatInfo.chatId, newAssistantMessage);
+          currentMessageId = newAssistantMessage.id;
+          actions.setStreamingMessageId(chatInfo.chatId, newAssistantMessage.id);
+          console.log("EmptySpaceState: Started new assistant message:", newAssistantMessage.id);
+        },
+        () => {
+          // On message end - finalize the message
+          actions.setStreamingMessageId(chatInfo.chatId, null);
+          console.log("EmptySpaceState: Ended assistant message:", currentMessageId);
+        },
+        (message: any) => {
+          // On tool call message
+          console.log("EmptySpaceState: Received tool call message:", message);
+          actions.addMessage(chatInfo.chatId, {
+            id: message.id,
+            role: 'assistant',
+            content: message.content,
+            timestamp: message.timestamp,
+            toolCall: message.toolCall
+          });
+        },
+        (message: any) => {
+          // On tool result message
+          console.log("EmptySpaceState: Received tool result message:", message);
+          actions.addMessage(chatInfo.chatId, {
+            id: message.id,
+            role: 'user',
+            content: message.content,
+            timestamp: message.timestamp,
+            toolResult: message.toolResult
+          });
         }
       )
         .catch((error) => {

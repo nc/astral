@@ -162,13 +162,6 @@ export const ChatComposer = forwardRef<ChatComposerRef, ChatComposerProps>(
     },
     ref
   ) => {
-    console.log(
-      "Rendering ChatComposer for chatId:",
-      chatId,
-      "with input:",
-      input
-    );
-
     const [isFocused, setIsFocused] = useState(false);
     const composerRef = useRef<HTMLDivElement>(null);
     const focusFnRef = useRef<(() => void) | null>(null);

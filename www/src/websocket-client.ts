@@ -134,9 +134,16 @@ export class WebSocketClient {
    * Stream chat with AI agent
    */
   async streamChat(
+    chatId: string,
     messages: Array<{role: 'user' | 'assistant', content: string}>,
     model: string,
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
+    onMessageStart?: () => void,
+    onMessageEnd?: () => void,
+    onToolCall?: (toolName: string, args: any) => void,
+    onToolResult?: (toolName: string, result: any) => void,
+    onToolCallMessage?: (message: any) => void,
+    onToolResultMessage?: (message: any) => void
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
@@ -169,11 +176,29 @@ export class WebSocketClient {
 
         if (response.type === 'start') {
           resetTimeout(); // Reset timeout when stream starts
+        } else if (response.type === 'message-start') {
+          if (onMessageStart) onMessageStart();
+          resetTimeout();
         } else if (response.type === 'chunk') {
           if (response.data) {
             onChunk(response.data);
           }
           resetTimeout(); // Reset timeout on each chunk
+        } else if (response.type === 'message-end') {
+          if (onMessageEnd) onMessageEnd();
+          resetTimeout();
+        } else if (response.type === 'tool-call') {
+          if (onToolCall) onToolCall(response.toolName, response.args);
+          resetTimeout();
+        } else if (response.type === 'tool-result') {
+          if (onToolResult) onToolResult(response.toolName, response.result);
+          resetTimeout();
+        } else if (response.type === 'tool-call-message') {
+          if (onToolCallMessage) onToolCallMessage(response.message);
+          resetTimeout();
+        } else if (response.type === 'tool-result-message') {
+          if (onToolResultMessage) onToolResultMessage(response.message);
+          resetTimeout();
         } else if (response.type === 'keepalive') {
           // Keep-alive ping from server - reset timeout but don't call onChunk
           resetTimeout();
@@ -187,7 +212,7 @@ export class WebSocketClient {
       this.ws.send(JSON.stringify({
         id,
         method: 'streamChat',
-        params: { messages, model },
+        params: { chatId, messages, model },
       }));
     });
   }

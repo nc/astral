@@ -17,7 +17,6 @@ interface SpacesListProps {
 }
 
 export function SpacesList({ user }: SpacesListProps) {
-  console.log("Rendering SpacesList");
   const snap = useSnapshot(store);
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [spaceToRename, setSpaceToRename] = useState<{

@@ -38,8 +38,6 @@ const customStyle: React.CSSProperties = {
 };
 
 export function Chat({ chat }: ChatProps) {
-  console.log(`Rendering Chat: ${chat.id} - ${chat.title}`);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [shouldClearEditor, setShouldClearEditor] = React.useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -145,11 +143,6 @@ export function Chat({ chat }: ChatProps) {
     actions.clearInput(chat.id);
     setShouldClearEditor(true);
 
-    // Create assistant message with empty content for streaming
-    const assistantMessage = actions.createMessage("assistant", "");
-    actions.addMessage(chat.id, assistantMessage);
-    actions.setStreamingMessageId(chat.id, assistantMessage.id);
-
     // Build the full message history including the new user message
     const messageHistory = [...chat.messages, userMessage].map((msg) => ({
       role: msg.role,
@@ -166,6 +159,9 @@ export function Chat({ chat }: ChatProps) {
       return;
     }
 
+    // Track current streaming message
+    let currentAssistantMessageId: string | null = null;
+
     try {
       await sendMessage(
         spaceId,
@@ -173,7 +169,66 @@ export function Chat({ chat }: ChatProps) {
         messageHistory,
         chat.model!,
         (chunk: string) => {
-          actions.appendToMessage(chat.id, assistantMessage.id, chunk);
+          // Append chunk to current message
+          if (currentAssistantMessageId) {
+            actions.appendToMessage(chat.id, currentAssistantMessageId, chunk);
+          }
+        },
+        () => {
+          // On message start - create new assistant message
+          const newAssistantMessage = actions.createMessage("assistant", "");
+          actions.addMessage(chat.id, newAssistantMessage);
+          currentAssistantMessageId = newAssistantMessage.id;
+          actions.setStreamingMessageId(chat.id, newAssistantMessage.id);
+          console.log("Started new assistant message:", newAssistantMessage.id);
+        },
+        (content: string) => {
+          // On message end - finalize the message
+          if (currentAssistantMessageId) {
+            actions.setStreamingMessageId(chat.id, null);
+            console.log("Ended assistant message:", currentAssistantMessageId, "with", content.length, "chars");
+            currentAssistantMessageId = null;
+          }
+        },
+        (message: any) => {
+          // On tool call message - add it to the chat
+          console.log("📥 [FRONTEND] Received tool call message:", message);
+          console.log("📥 [FRONTEND] Tool call data:", message.toolCall);
+
+          const currentChat = actions.findChat(chat.id);
+          console.log("📥 [FRONTEND] Current chat messages count:", currentChat?.messages.length);
+
+          actions.addMessage(chat.id, {
+            id: message.id,
+            role: 'assistant',
+            content: message.content,
+            timestamp: message.timestamp,
+            toolCall: message.toolCall
+          });
+
+          const updatedChat = actions.findChat(chat.id);
+          console.log("📥 [FRONTEND] After adding, messages count:", updatedChat?.messages.length);
+          console.log("📥 [FRONTEND] Last message:", updatedChat?.messages[updatedChat.messages.length - 1]);
+        },
+        (message: any) => {
+          // On tool result message - add it to the chat
+          console.log("📥 [FRONTEND] Received tool result message:", message);
+          console.log("📥 [FRONTEND] Tool result data:", message.toolResult);
+
+          const currentChat = actions.findChat(chat.id);
+          console.log("📥 [FRONTEND] Current chat messages count:", currentChat?.messages.length);
+
+          actions.addMessage(chat.id, {
+            id: message.id,
+            role: 'user',
+            content: message.content,
+            timestamp: message.timestamp,
+            toolResult: message.toolResult
+          });
+
+          const updatedChat = actions.findChat(chat.id);
+          console.log("📥 [FRONTEND] After adding, messages count:", updatedChat?.messages.length);
+          console.log("📥 [FRONTEND] Last message:", updatedChat?.messages[updatedChat.messages.length - 1]);
         }
       );
     } catch (error) {
@@ -191,11 +246,17 @@ export function Chat({ chat }: ChatProps) {
         error instanceof Error ? error.message : "Unknown error occurred";
       console.error("Final error message to display:", errorMessage);
 
-      actions.updateMessageContent(
-        chat.id,
-        assistantMessage.id,
-        `❌ Error: ${errorMessage}`
-      );
+      if (currentAssistantMessageId) {
+        actions.updateMessageContent(
+          chat.id,
+          currentAssistantMessageId,
+          `❌ Error: ${errorMessage}`
+        );
+      } else {
+        // If no message started yet, create one with the error
+        const errorMsg = actions.createMessage("assistant", `❌ Error: ${errorMessage}`);
+        actions.addMessage(chat.id, errorMsg);
+      }
       console.error("Error message updated in store");
     } finally {
       actions.setLoading(chat.id, false);
@@ -408,34 +469,107 @@ export function Chat({ chat }: ChatProps) {
                   // paddingRight: "0px", // Add space for scrollbar,
                 }}
               >
-                {chat.messages.map((message) => (
-                  <div
-                    key={message.id}
-                    style={{
-                      marginBottom: "10px",
-                      maxWidth: "640px",
-                      display: "table",
-                      width: "100%",
-                      padding:
-                        message.role === "user" ? "12px 12px" : "0px 8px",
-                      margin: message.role === "user" ? "0px auto 12px" : "0px auto",
-                      borderRadius: "9px",
-                      color: "#FFFFFF",
-                      backgroundColor:
-                        message.role === "user" ? "var(--bg-secondary)" : "transparent",
-                    }}
-                  >
+                {chat.messages.map((message, index) => {
+                  // Check if this is the last message in a consecutive run of assistant messages
+                  const isLastConsecutiveAssistant =
+                    message.role === "assistant" &&
+                    (index === chat.messages.length - 1 || chat.messages[index + 1].role !== "assistant");
+
+                  return (
                     <div
+                      key={message.id}
                       style={{
-                        margin: "0px 0px",
-                        color: "var(--text-primary)",
-                        fontSize: "14px",
-                        lineHeight: "24px",
+                        marginBottom: "10px",
+                        maxWidth: "640px",
+                        display: "table",
+                        width: "100%",
+                        padding:
+                          message.role === "user" ? "12px 12px" : "0px 8px",
+                        margin: message.role === "user" ? "0px auto 12px" : "0px auto",
+                        borderRadius: "9px",
+                        color: "#FFFFFF",
+                        backgroundColor:
+                          message.role === "user" ? "var(--bg-secondary)" : "transparent",
                       }}
                     >
-                      {message.role === "assistant" ? (
-                        <>
-                        <ReactMarkdown
+                      <div
+                        style={{
+                          margin: "0px 0px",
+                          color: "var(--text-primary)",
+                          fontSize: "14px",
+                          lineHeight: "24px",
+                        }}
+                      >
+                        {message.role === "assistant" ? (
+                          message.toolCall ? (
+                            <div style={{
+                              backgroundColor: "var(--bg-secondary)",
+                              padding: "12px",
+                              borderRadius: "9px",
+                              marginBottom: "0px",
+                              borderLeft: "3px solid #5ba97d"
+                            }}>
+                              {/* Render different UI based on tool type */}
+                              {message.toolCall.toolName === 'webSearch' ? (
+                                <div style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "8px",
+                                  color: "var(--text-primary)",
+                                  fontSize: "14px"
+                                }}>
+                                  <span>🔍</span>
+                                  <span style={{ fontWeight: "500" }}>Searching...</span>
+                                  {message.toolCall.args?.query && (
+                                    <span style={{ color: "var(--text-secondary)", fontStyle: "italic" }}>
+                                      "{message.toolCall.args.query}"
+                                    </span>
+                                  )}
+                                </div>
+                              ) : message.toolCall.toolName === 'visitWebpage' ? (
+                                <div style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "8px",
+                                  color: "var(--text-primary)",
+                                  fontSize: "14px"
+                                }}>
+                                  <span>🌐</span>
+                                  <span style={{ fontWeight: "500" }}>Visiting webpage...</span>
+                                  {message.toolCall.args?.url && (
+                                    <span style={{
+                                      color: "var(--text-secondary)",
+                                      fontSize: "12px",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                      maxWidth: "400px"
+                                    }}>
+                                      {message.toolCall.args.url}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                // Generic tool call rendering
+                                <div>
+                                  <div style={{ color: "#5ba97d", fontWeight: "500", marginBottom: "4px" }}>
+                                    🔧 {message.toolCall.toolName}
+                                  </div>
+                                  <pre style={{
+                                    fontSize: "12px",
+                                    color: "var(--text-secondary)",
+                                    margin: "0",
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-word"
+                                  }}>
+                                    {JSON.stringify(message.toolCall.args, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          ) : message.content ? (
+                          <>
+                          <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
                             strong: ({ children }) => (
@@ -708,13 +842,133 @@ export function Chat({ chat }: ChatProps) {
                         >
                           {message.content}
                         </ReactMarkdown>
-                        <MessageActions
-                          messageId={message.id}
-                          messageContent={message.content}
-                          chatId={chat.id}
-                          isStreaming={chat.streamingMessageId === message.id}
-                        />
+                        {isLastConsecutiveAssistant && (
+                          <MessageActions
+                            messageId={message.id}
+                            messageContent={message.content}
+                            chatId={chat.id}
+                            isStreaming={chat.streamingMessageId === message.id}
+                          />
+                        )}
                         </>
+                      ) : null
+                      ) : message.toolResult ? (
+                        <div style={{
+                          backgroundColor: "var(--bg-secondary)",
+                          padding: "12px",
+                          borderRadius: "9px",
+                          marginBottom: "12px",
+                          borderLeft: "3px solid #4a9eff"
+                        }}>
+                          {/* Render different UI based on tool type */}
+                          {message.toolResult.toolName === 'webSearch' ? (
+                            <>
+                              <div style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                marginBottom: "8px",
+                                color: "var(--text-primary)",
+                                fontSize: "14px"
+                              }}>
+                                <span>✅</span>
+                                <span style={{ fontWeight: "500" }}>Found {(message.toolResult.result as any)?.results?.length || 0} results</span>
+                                {(message.toolResult.result as any)?.searchTerm && (
+                                  <span style={{ color: "var(--text-secondary)", fontStyle: "italic", fontSize: "13px" }}>
+                                    for "{(message.toolResult.result as any).searchTerm}"
+                                  </span>
+                                )}
+                              </div>
+                              {(message.toolResult.result as any)?.results && (message.toolResult.result as any).results.length > 0 && (
+                                <div style={{ fontSize: "13px" }}>
+                                  {(message.toolResult.result as any).results.slice(0, 5).map((item: any, resultIdx: number) => (
+                                    <div key={resultIdx} style={{
+                                      marginBottom: "8px",
+                                      paddingBottom: "8px",
+                                      borderBottom: resultIdx < Math.min(4, (message.toolResult!.result as any).results.length - 1) ? "1px solid var(--border-primary)" : "none"
+                                    }}>
+                                      <div style={{ fontWeight: "500", color: "#4a9eff", marginBottom: "2px" }}>
+                                        {item.title}
+                                      </div>
+                                      <div style={{ color: "var(--text-secondary)", fontSize: "12px", marginBottom: "2px" }}>
+                                        {item.snippet}
+                                      </div>
+                                      <a href={item.link} target="_blank" rel="noopener noreferrer" style={{
+                                        color: "var(--text-tertiary)",
+                                        fontSize: "11px",
+                                        textDecoration: "none"
+                                      }}>
+                                        {item.link}
+                                      </a>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          ) : message.toolResult.toolName === 'visitWebpage' ? (
+                            <>
+                              <div style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                marginBottom: "8px",
+                                color: "var(--text-primary)",
+                                fontSize: "14px"
+                              }}>
+                                <span>✅</span>
+                                <span style={{ fontWeight: "500" }}>Visited webpage</span>
+                              </div>
+                              {(message.toolResult.result as any)?.title && (
+                                <div style={{ fontWeight: "500", marginBottom: "4px", fontSize: "13px" }}>
+                                  {(message.toolResult.result as any).title}
+                                </div>
+                              )}
+                              {(message.toolResult.result as any)?.url && (
+                                <a href={(message.toolResult.result as any).url} target="_blank" rel="noopener noreferrer" style={{
+                                  color: "#4a9eff",
+                                  fontSize: "12px",
+                                  textDecoration: "none",
+                                  marginBottom: "8px",
+                                  display: "block"
+                                }}>
+                                  {(message.toolResult.result as any).url}
+                                </a>
+                              )}
+                              {(message.toolResult.result as any)?.content && (
+                                <div style={{
+                                  fontSize: "12px",
+                                  color: "var(--text-secondary)",
+                                  maxHeight: "150px",
+                                  overflow: "auto",
+                                  whiteSpace: "pre-wrap",
+                                  wordBreak: "break-word"
+                                }}>
+                                  {(message.toolResult.result as any).content.substring(0, 500)}...
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            // Generic tool result rendering
+                            <div>
+                              <div style={{ color: "#4a9eff", fontWeight: "500", marginBottom: "4px" }}>
+                                ✅ {message.toolResult.toolName}
+                              </div>
+                              <pre style={{
+                                fontSize: "12px",
+                                color: "var(--text-secondary)",
+                                margin: "0",
+                                whiteSpace: "pre-wrap",
+                                wordBreak: "break-word",
+                                maxHeight: "200px",
+                                overflow: "auto"
+                              }}>
+                                {typeof message.toolResult.result === 'string'
+                                  ? message.toolResult.result
+                                  : JSON.stringify(message.toolResult.result, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <p style={{ margin: "0px" }}>{message.content}</p>
                       )}
@@ -730,7 +984,8 @@ export function Chat({ chat }: ChatProps) {
                       )}
                     </div>
                   </div>
-                ))}
+                );
+                })}
 
                 {chat.isLoading && !chat.streamingMessageId && (
                   <div

@@ -5,6 +5,16 @@
 
 // ============== Domain Models ==============
 
+export interface ToolCall {
+	toolName: string;
+	args: Record<string, any>;
+}
+
+export interface ToolResult {
+	toolName: string;
+	result: any;
+}
+
 export interface ChatMessage {
 	id: string;
 	chatId: string;
@@ -12,6 +22,8 @@ export interface ChatMessage {
 	role: "user" | "assistant" | "system";
 	timestamp: number;
 	metadata?: Record<string, any>;
+	toolCall?: ToolCall;
+	toolResult?: ToolResult;
 }
 
 export interface Chat {

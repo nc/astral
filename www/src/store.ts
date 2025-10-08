@@ -30,17 +30,37 @@ const BackendMessageSchema = z.object({
   role: z.enum(['user', 'assistant', 'system']),
   timestamp: z.number(),
   metadata: z.record(z.any()).optional(),
+  toolCall: z.object({
+    toolName: z.string(),
+    args: z.record(z.any()).optional().nullable()
+  }).optional().nullable(),
+  toolResult: z.object({
+    toolName: z.string(),
+    result: z.any().optional().nullable()
+  }).optional().nullable(),
 })
 
 const BackendSpacesArraySchema = z.array(BackendSpaceSchema)
 const BackendChatsArraySchema = z.array(BackendChatSchema)
 const BackendMessagesArraySchema = z.array(BackendMessageSchema)
 
+export interface ToolCall {
+  toolName: string
+  args: Record<string, any>
+}
+
+export interface ToolResult {
+  toolName: string
+  result: any
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
   timestamp: number
+  toolCall?: ToolCall
+  toolResult?: ToolResult
 }
 
 export interface UserMessage {
@@ -48,6 +68,7 @@ export interface UserMessage {
   role: 'user'
   content: string
   timestamp: number
+  toolResult?: ToolResult
 }
 
 export interface AssistantMessage {
@@ -55,6 +76,7 @@ export interface AssistantMessage {
   role: 'assistant'
   content: string
   timestamp: number
+  toolCall?: ToolCall
 }
 
 export interface Chat {
@@ -173,12 +195,16 @@ export const actions = {
               // Validate messages data
               const backendMessages = BackendMessagesArraySchema.parse(rawMessages);
               console.log(`      Loaded ${backendMessages.length} messages`);
+              console.log('      Raw messages:', rawMessages);
+              console.log('      Parsed messages:', backendMessages);
 
               const messages = backendMessages.map(msg => ({
                 id: msg.id,
                 role: msg.role as 'user' | 'assistant',
                 content: msg.content,
-                timestamp: msg.timestamp
+                timestamp: msg.timestamp,
+                toolCall: (msg.toolCall?.args ? msg.toolCall : undefined) as ToolCall | undefined,
+                toolResult: (msg.toolResult?.result !== null && msg.toolResult?.result !== undefined ? msg.toolResult : undefined) as ToolResult | undefined
               }));
 
               space.chats[backendChat.id] = {
@@ -282,7 +308,9 @@ export const actions = {
             id: msg.id,
             role: msg.role as 'user' | 'assistant',
             content: msg.content,
-            timestamp: msg.timestamp
+            timestamp: msg.timestamp,
+            toolCall: (msg.toolCall?.args ? msg.toolCall : undefined) as ToolCall | undefined,
+            toolResult: (msg.toolResult?.result !== null && msg.toolResult?.result !== undefined ? msg.toolResult : undefined) as ToolResult | undefined
           }));
 
           // Add new chat with messages
@@ -445,7 +473,9 @@ export const actions = {
             id: backendMsg.id,
             role: backendMsg.role as 'user' | 'assistant',
             content: backendMsg.content,
-            timestamp: backendMsg.timestamp
+            timestamp: backendMsg.timestamp,
+            toolCall: (backendMsg.toolCall?.args ? backendMsg.toolCall : undefined) as ToolCall | undefined,
+            toolResult: (backendMsg.toolResult?.result !== null && backendMsg.toolResult?.result !== undefined ? backendMsg.toolResult : undefined) as ToolResult | undefined
           });
         }
       } catch (error) {

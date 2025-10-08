@@ -5,7 +5,11 @@ export async function sendMessage(
   chatId: string,
   messages: Array<{role: 'user' | 'assistant', content: string}>,
   model: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  onMessageStart?: () => void,
+  onMessageEnd?: (content: string) => void,
+  onToolCallMessage?: (message: any) => void,
+  onToolResultMessage?: (message: any) => void
 ): Promise<void> {
   try {
     console.log(`sendMessage: spaceId=${spaceId}, chatId=${chatId}, model=${model}`);
@@ -19,23 +23,54 @@ export async function sendMessage(
       console.log('User message saved with ID:', savedUserMsg.id);
     }
 
-    // Create a placeholder for the assistant message
-    let assistantContent = '';
+    // Track current assistant message content
+    let currentAssistantContent = '';
 
     // Stream the AI response
     console.log('Starting AI stream...');
-    await client.streamChat(messages, model, (chunk) => {
-      assistantContent += chunk;
-      onChunk(chunk);
-    });
-    console.log('AI stream completed, assistant content length:', assistantContent.length);
-
-    // Save the complete assistant message to backend
-    if (assistantContent) {
-      console.log('Saving assistant message to backend');
-      const savedAssistantMsg = await client.addMessage(chatId, assistantContent, 'assistant', { timestamp: Date.now() });
-      console.log('Assistant message saved with ID:', savedAssistantMsg.id);
-    }
+    await client.streamChat(
+      chatId,
+      messages,
+      model,
+      (chunk) => {
+        currentAssistantContent += chunk;
+        onChunk(chunk);
+      },
+      () => {
+        // On message start - reset content accumulator
+        console.log('Message started');
+        currentAssistantContent = '';
+        if (onMessageStart) onMessageStart();
+      },
+      async () => {
+        // On message end - save the accumulated content
+        if (currentAssistantContent) {
+          console.log('Message ended, saving to backend:', currentAssistantContent.length, 'chars');
+          const savedMsg = await client.addMessage(chatId, currentAssistantContent, 'assistant', { timestamp: Date.now() });
+          console.log('Assistant message saved with ID:', savedMsg.id);
+          if (onMessageEnd) onMessageEnd(currentAssistantContent);
+        }
+      },
+      (toolName, args) => {
+        // On tool call
+        console.log('🔧 [TOOL CALL EVENT]', toolName, args);
+      },
+      (toolName, result) => {
+        // On tool result
+        console.log('✅ [TOOL RESULT EVENT]', toolName, result);
+      },
+      (message) => {
+        // On tool call message created in backend
+        console.log('💾 [TOOL CALL MESSAGE CREATED]', message);
+        if (onToolCallMessage) onToolCallMessage(message);
+      },
+      (message) => {
+        // On tool result message created in backend
+        console.log('💾 [TOOL RESULT MESSAGE CREATED]', message);
+        if (onToolResultMessage) onToolResultMessage(message);
+      }
+    );
+    console.log('AI stream completed');
   } catch (error) {
     console.error('Error in sendMessage:', error);
     throw error instanceof Error ? error : new Error('Failed to get response from AI');
